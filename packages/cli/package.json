@@ -1,11 +1,23 @@
 {
   "name": "dioramai",
-  "private": true,
-  "version": "0.0.0",
+  "version": "0.1.0",
+  "description": "Local-first CLI and bridge for Dioramai runtime sync in React Three Fiber repos.",
+  "license": "MIT",
   "type": "module",
+  "main": "./dist/index.js",
   "bin": {
-    "dioramai": "./src/index.ts",
-    "diorama": "./src/index.ts"
+    "dioramai": "./dist/index.js",
+    "diorama": "./dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "engines": {
+    "node": ">=20"
+  },
+  "publishConfig": {
+    "access": "public"
   },
   "scripts": {
     "dev": "tsx src/index.ts dev",
@@ -13,14 +25,16 @@
     "doctor": "tsx src/index.ts doctor",
     "export": "tsx src/index.ts export",
     "validate": "tsx src/index.ts validate",
-    "build": "tsc -p tsconfig.json --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "bundle": "node scripts/build.mjs",
+    "build": "npm run typecheck && npm run bundle",
+    "prepack": "npm run build",
     "test": "echo \"No tests for CLI\""
   },
-  "dependencies": {
-    "@dioramai/local-bridge": "*"
-  },
+  "dependencies": {},
   "devDependencies": {
     "@types/node": "^24.12.2",
+    "esbuild": "^0.27.7",
     "tsx": "^4.21.0",
     "typescript": "~6.0.2"
   }

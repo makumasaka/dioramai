@@ -1,4 +1,4 @@
-#!/usr/bin/env tsx
+#!/usr/bin/env node
 import { spawn } from 'node:child_process';
 import {
   DEFAULT_BRIDGE_PORT,
