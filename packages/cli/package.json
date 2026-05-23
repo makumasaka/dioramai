@@ -6,8 +6,8 @@
   "type": "module",
   "main": "./dist/index.js",
   "bin": {
-    "dioramai": "./dist/index.js",
-    "diorama": "./dist/index.js"
+    "dioramai": "dist/index.js",
+    "diorama": "dist/index.js"
   },
   "files": [
     "dist",
