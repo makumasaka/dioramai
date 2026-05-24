@@ -678,7 +678,9 @@ const vitePackageJson = (projectRoot: string): string => jsonFile({
     build: 'tsc -b && vite build',
     preview: 'vite preview',
     doctor: 'dioramai doctor',
-    dioramai: 'dioramai dev --open',
+    dioramai: 'dioramai',
+    'dioramai:dev': 'dioramai dev --open',
+    'dioramai:doctor': 'dioramai doctor',
   },
   dependencies: {
     '@react-three/drei': '^10.7.7',
@@ -693,8 +695,26 @@ const vitePackageJson = (projectRoot: string): string => jsonFile({
     '@vitejs/plugin-react': '^6.0.1',
     typescript: '~6.0.2',
     vite: '^8.0.9',
+    dioramai: '^0.1.0',
   },
 });
+
+const gitignoreFile = (): string =>
+  [
+    'node_modules/',
+    'dist/',
+    'dist-ssr/',
+    '.vite/',
+    '.DS_Store',
+    '',
+    '.env',
+    '.env.local',
+    '.env.*.local',
+    '!.env.example',
+    '',
+    '.dioramai/',
+    '',
+  ].join('\n');
 
 const indexHtml = (): string =>
   [
@@ -782,6 +802,14 @@ const styleCss = (): string =>
     '',
   ].join('\n');
 
+const componentsReadme = (): string =>
+  [
+    '# Components',
+    '',
+    'Put app-specific React components here. Keep Dioramai-generated scene code in `src/generated`.',
+    '',
+  ].join('\n');
+
 const cursorRule = (): string =>
   [
     '---',
@@ -845,11 +873,13 @@ export const initializeDioramaiProject = async (
 
     if (template === 'vite-r3f') {
       await writeProjectTextFile(projectRoot, 'package.json', vitePackageJson(projectRoot), force, wroteFiles);
+      await writeProjectTextFile(projectRoot, '.gitignore', gitignoreFile(), force, wroteFiles);
       await writeProjectTextFile(projectRoot, 'index.html', indexHtml(), force, wroteFiles);
       await writeProjectTextFile(projectRoot, 'src/main.tsx', mainTsx(), force, wroteFiles);
       await writeProjectTextFile(projectRoot, 'src/App.tsx', appTsx(), force, wroteFiles);
       await writeProjectTextFile(projectRoot, 'src/DioramaiApp.tsx', dioramaiAppTsx(), force, wroteFiles);
       await writeProjectTextFile(projectRoot, 'src/style.css', styleCss(), force, wroteFiles);
+      await writeProjectTextFile(projectRoot, 'src/components/README.md', componentsReadme(), force, wroteFiles);
       await writeProjectTextFile(projectRoot, 'src/generated/DioramaiScene.generated.tsx', generatedModuleContent, force, wroteFiles);
       await writeProjectTextFile(projectRoot, 'src/generated/dioramai.scene.json', serializeScene(starterScene), force, wroteFiles);
       await writeProjectTextFile(projectRoot, '.cursor/rules/dioramai.mdc', cursorRule(), force, wroteFiles);
@@ -1888,6 +1918,7 @@ export class DioramaiBridgeRuntime {
 export type StartedBridgeServer = {
   server: Server;
   runtime: DioramaiBridgeRuntime;
+  requestedPort: number;
   port: number;
   pairingToken: string;
   close: () => Promise<void>;
@@ -1949,7 +1980,18 @@ export const startDioramaiBridgeServer = async (
       }
 
       if (req.method === 'GET' && url.pathname === '/health') {
-        sendJson(200, { ok: true, data: { status: 'ok' } });
+        const status = await runtime.getProjectStatus();
+        sendJson(200, {
+          ok: true,
+          data: {
+            status: 'ok',
+            bridgeRunning: true,
+            projectLoaded: status.ok,
+            sceneLoaded: status.ok ? status.data.currentSceneLoaded : false,
+            assetCount: status.ok ? status.data.assetCount : 0,
+            lastSync: status.ok ? status.data.lastSync : null,
+          },
+        });
         return;
       }
 
@@ -2044,19 +2086,26 @@ export const startDioramaiBridgeServer = async (
     }
   });
 
-  await new Promise<void>((resolveListen, rejectListen) => {
-    server.once('error', rejectListen);
-    server.listen(port, '127.0.0.1', () => {
-      server.off('error', rejectListen);
-      resolveListen();
+  try {
+    await new Promise<void>((resolveListen, rejectListen) => {
+      server.once('error', rejectListen);
+      server.listen(port, '127.0.0.1', () => {
+        server.off('error', rejectListen);
+        resolveListen();
+      });
     });
-  });
+  } catch (error) {
+    runtime.close();
+    server.close();
+    throw error;
+  }
   const address = server.address();
   const actualPort = typeof address === 'object' && address !== null ? address.port : port;
 
   return {
     server,
     runtime,
+    requestedPort: port,
     port: actualPort,
     pairingToken,
     close: () =>
@@ -2065,4 +2114,35 @@ export const startDioramaiBridgeServer = async (
         server.close((error) => error ? rejectClose(error) : resolveClose());
       }),
   };
+};
+
+const isPortInUseError = (error: unknown): boolean =>
+  typeof error === 'object' &&
+  error !== null &&
+  'code' in error &&
+  (error as { code?: unknown }).code === 'EADDRINUSE';
+
+export const startDioramaiBridgeServerWithFallback = async (
+  preferredPort = Number(process.env.DIORAMAI_BRIDGE_PORT ?? DEFAULT_BRIDGE_PORT),
+  options: DioramaiBridgeRuntimeOptions = {},
+  maxAttempts = 20,
+): Promise<StartedBridgeServer> => {
+  if (preferredPort === 0) return startDioramaiBridgeServer(0, options);
+  let lastError: unknown;
+  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+    const candidatePort = preferredPort + attempt;
+    try {
+      const started = await startDioramaiBridgeServer(candidatePort, options);
+      return {
+        ...started,
+        requestedPort: preferredPort,
+      };
+    } catch (error) {
+      if (!isPortInUseError(error)) throw error;
+      lastError = error;
+    }
+  }
+  throw lastError instanceof Error
+    ? lastError
+    : new Error(`No available Dioramai bridge port found from ${preferredPort}.`);
 };

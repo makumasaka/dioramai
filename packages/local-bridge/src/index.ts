@@ -7,6 +7,7 @@ export {
   loadInitialBridgeScene,
   resolveWorkspaceRelativePath,
   startDioramaiBridgeServer,
+  startDioramaiBridgeServerWithFallback,
   validateDioramaiProject,
 } from './runtime';
 export type {

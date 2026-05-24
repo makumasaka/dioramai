@@ -29,13 +29,14 @@
     "bundle": "node scripts/build.mjs",
     "build": "npm run typecheck && npm run bundle",
     "prepack": "npm run build",
-    "test": "echo \"No tests for CLI\""
+    "test": "vitest run"
   },
   "dependencies": {},
   "devDependencies": {
     "@types/node": "^24.12.2",
     "esbuild": "^0.27.7",
     "tsx": "^4.21.0",
-    "typescript": "~6.0.2"
+    "typescript": "~6.0.2",
+    "vitest": "^3.2.4"
   }
 }

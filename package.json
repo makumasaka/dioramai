@@ -8,7 +8,7 @@
   "scripts": {
     "dev": "npm run dev -w web",
     "typecheck": "npm run build -w @dioramai/schema && npm run build -w @dioramai/core && npm run build -w @dioramai/export-r3f && npm run build -w @dioramai/r3f-bridge && npm run build -w @dioramai/ingestion && npm run build -w @dioramai/local-bridge && npm run build -w dioramai && npm run build -w @dioramai/mcp && npm run build -w @dioramai/examples",
-    "test": "npm run test -w @dioramai/schema && npm run test -w @dioramai/core && npm run test -w @dioramai/export-r3f && npm run test -w @dioramai/r3f-bridge && npm run test -w @dioramai/ingestion && npm run test -w @dioramai/local-bridge && npm run test -w @dioramai/mcp && npm run test -w web",
+    "test": "npm run test -w @dioramai/schema && npm run test -w @dioramai/core && npm run test -w @dioramai/export-r3f && npm run test -w @dioramai/r3f-bridge && npm run test -w @dioramai/ingestion && npm run test -w @dioramai/local-bridge && npm run test -w dioramai && npm run test -w @dioramai/mcp && npm run test -w web",
     "build": "npm run typecheck && npm run build -w web",
     "lint": "npm run lint -w web",
     "preview": "npm run preview -w web",

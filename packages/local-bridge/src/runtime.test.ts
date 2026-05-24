@@ -1,4 +1,5 @@
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { createServer as createNetServer, type Server as NetServer } from 'node:net';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it, afterEach, beforeEach } from 'vitest';
@@ -10,6 +11,7 @@ import {
   initializeDioramaiProject,
   resolveWorkspaceRelativePath,
   startDioramaiBridgeServer,
+  startDioramaiBridgeServerWithFallback,
 } from './runtime';
 
 let projectRoot = '';
@@ -49,6 +51,22 @@ const waitFor = async (predicate: () => Promise<boolean>, timeoutMs = 1500): Pro
   return false;
 };
 
+const listenOnRandomPort = async (server: NetServer): Promise<number> =>
+  new Promise((resolveListen, rejectListen) => {
+    server.once('error', rejectListen);
+    server.listen(0, '127.0.0.1', () => {
+      server.off('error', rejectListen);
+      const address = server.address();
+      if (typeof address === 'object' && address !== null) resolveListen(address.port);
+      else rejectListen(new Error('Expected TCP server address.'));
+    });
+  });
+
+const closeNetServer = async (server: NetServer): Promise<void> =>
+  new Promise((resolveClose, rejectClose) => {
+    server.close((error) => error ? rejectClose(error) : resolveClose());
+  });
+
 describe('Dioramai project onboarding', () => {
   let initRoot = '';
 
@@ -71,20 +89,41 @@ describe('Dioramai project onboarding', () => {
       result.data.generatedModule.endsWith('src/generated/DioramaiScene.generated.tsx')).toBe(true);
     expect(result.data.wroteFiles).toEqual(expect.arrayContaining([
       'package.json',
+      '.gitignore',
       'index.html',
       'src/main.tsx',
       'src/App.tsx',
       'src/DioramaiApp.tsx',
       'src/generated/DioramaiScene.generated.tsx',
       'src/generated/dioramai.scene.json',
+      'src/components/README.md',
       '.cursor/rules/dioramai.mdc',
     ]));
 
+    const packageJson = JSON.parse(await readFile(resolve(initRoot, 'package.json'), 'utf8')) as {
+      scripts: Record<string, string>;
+    };
+    expect(packageJson.scripts).toMatchObject({
+      dev: 'vite',
+      build: 'tsc -b && vite build',
+      preview: 'vite preview',
+      doctor: 'dioramai doctor',
+      dioramai: 'dioramai',
+      'dioramai:dev': 'dioramai dev --open',
+      'dioramai:doctor': 'dioramai doctor',
+    });
+    const gitignore = await readFile(resolve(initRoot, '.gitignore'), 'utf8');
+    expect(gitignore).toContain('node_modules/');
+    expect(gitignore).toContain('dist/');
+    expect(gitignore).toContain('.env.local');
+    expect(gitignore).toContain('.dioramai/');
+    expect(await stat(resolve(initRoot, 'src/components/README.md'))).toBeTruthy();
     const wrapper = await readFile(resolve(initRoot, 'src/DioramaiApp.tsx'), 'utf8');
     expect(wrapper).toContain("import { DioramaiScene } from './generated/DioramaiScene.generated';");
     const generated = await readFile(resolve(initRoot, 'src/generated/DioramaiScene.generated.tsx'), 'utf8');
     expect(generated).not.toContain(initRoot);
     expect(parseSceneFromR3fSyncModule(generated).ok).toBe(true);
+    await expect(stat(resolve(initRoot, '.dioramai'))).rejects.toThrow();
   });
 
   it('refuses to scaffold a non-empty folder without --force', async () => {
@@ -412,6 +451,28 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
       expect(accepted.status).toBe(200);
     } finally {
       await started.close();
+    }
+  });
+
+  it('falls back to the next available port when the preferred bridge port is busy', async () => {
+    const blocker = createNetServer();
+    const preferredPort = await listenOnRandomPort(blocker);
+    const started = await startDioramaiBridgeServerWithFallback(preferredPort, {
+      projectRoot,
+      pairingToken: 'test-token',
+    });
+    try {
+      expect(started.requestedPort).toBe(preferredPort);
+      expect(started.port).not.toBe(preferredPort);
+      const health = await fetch(`http://127.0.0.1:${started.port}/health`);
+      const payload = await health.json() as { ok: boolean; data?: { bridgeRunning?: boolean; sceneLoaded?: boolean } };
+      expect(health.status).toBe(200);
+      expect(payload.ok).toBe(true);
+      expect(payload.data?.bridgeRunning).toBe(true);
+      expect(payload.data?.sceneLoaded).toBe(true);
+    } finally {
+      await started.close();
+      await closeNetServer(blocker);
     }
   });
 });
