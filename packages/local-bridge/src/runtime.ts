@@ -97,6 +97,7 @@ export type DioramaiBridgeRuntimeOptions = {
   codeWatchDebounceMs?: number;
   pairingToken?: string;
   allowedOrigins?: string[];
+  onBrowserConnect?: (clientCount: number) => void;
 };
 
 export type DioramaiProjectConfig = {
@@ -1233,6 +1234,7 @@ export const validateDioramaiProject = async (
 export class DioramaiBridgeRuntime {
   private runtime: LocalSceneRuntime;
   private clients = new Set<ServerResponse>();
+  private readonly onBrowserConnect: ((clientCount: number) => void) | undefined;
   private readonly projectRoot: string;
   private readonly configFound: boolean;
   private readonly configPath: string;
@@ -1290,11 +1292,13 @@ export class DioramaiBridgeRuntime {
     }
 
     this.runtime = createLocalSceneRuntime(initialScene);
+    this.onBrowserConnect = options.onBrowserConnect;
     if (options.watchCode === true) this.startCodeWatcher();
   }
 
   addClient(res: ServerResponse): void {
     this.clients.add(res);
+    this.onBrowserConnect?.(this.clients.size);
     const scene = this.getSceneResult();
     if (scene.ok) {
       sendSse(res, {
@@ -1303,7 +1307,10 @@ export class DioramaiBridgeRuntime {
         source: 'bridge',
       });
     }
-    res.on('close', () => this.clients.delete(res));
+    res.on('close', () => {
+      this.clients.delete(res);
+      this.onBrowserConnect?.(this.clients.size);
+    });
   }
 
   private getSceneResult(): BridgeResult<{ scene: Scene }> {

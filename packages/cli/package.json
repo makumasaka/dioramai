@@ -9,9 +9,18 @@
     "dioramai": "dist/index.js",
     "diorama": "dist/index.js"
   },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/mkumasaka/dioramai.git"
+  },
+  "homepage": "https://dioramai.design",
+  "bugs": {
+    "url": "https://github.com/mkumasaka/dioramai/issues"
+  },
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "LICENSE"
   ],
   "engines": {
     "node": ">=20"

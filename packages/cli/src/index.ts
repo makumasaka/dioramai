@@ -82,7 +82,7 @@ export const installDependencies = async (projectRoot: string): Promise<number> 
 };
 
 const shellUrlFor = (argv: string[], env: NodeJS.ProcessEnv, pairingToken: string, port: number): string => {
-  const base = argValue(argv, 'shellUrl') ?? env.DIORAMAI_WEB_SHELL_URL ?? 'http://localhost:5173/';
+  const base = argValue(argv, 'shellUrl') ?? env.DIORAMAI_WEB_SHELL_URL ?? 'https://dioramai.design';
   const url = new URL(base);
   url.searchParams.set('bridgeToken', pairingToken);
   url.searchParams.set('bridgeUrl', `http://127.0.0.1:${port}`);
@@ -308,6 +308,13 @@ export const runCli = async (
         projectRoot,
         watchCode,
         pairingToken: argValue(argv, 'token') ?? env.DIORAMAI_BRIDGE_TOKEN,
+        onBrowserConnect: (count) => {
+          io.stdout.write(
+            count > 0
+              ? `\nBridge: ${count} browser client${count === 1 ? '' : 's'} connected.\n`
+              : '\nBridge: browser client disconnected.\n',
+          );
+        },
       });
       const info = started.runtime.getProjectInfo();
       const bridgeUrl = `http://127.0.0.1:${started.port}`;

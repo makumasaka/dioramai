@@ -187,7 +187,7 @@ describe('dioramai dev CLI', () => {
     expect(capture.stdout()).toContain('Dioramai dev started');
     expect(capture.stdout()).toContain('Bridge:');
     expect(capture.stdout()).toContain('- URL: http://127.0.0.1:7777');
-    expect(capture.stdout()).toContain('- Shell (local): http://localhost:5173/');
+    expect(capture.stdout()).toContain('- Shell (hosted): https://dioramai.design');
     expect(capture.stdout()).toContain('- Code watcher: enabled');
     expect(capture.stdout()).toContain('- GLBs discovered: 0');
     expect(capture.stdout()).toContain('1. In another terminal, run:');
@@ -332,5 +332,146 @@ describe('dioramai dev CLI', () => {
     expect(capture.stderr()).toContain('Could not open the browser automatically.');
     expect(capture.stderr()).toContain('bridgeToken=');
     expect(capture.stderr()).toContain('bridgeUrl=');
+  });
+
+  it('uses https://dioramai.design as the default shell URL', async () => {
+    await initProject();
+    const capture = createIo();
+    const openedUrls: string[] = [];
+
+    const exitCode = await runCli(
+      ['dev', '--open', '--projectRoot', projectRoot],
+      {},
+      capture.io,
+      {
+        startBridgeServer: async (requestedPort) =>
+          fakeStartedBridge(projectRoot, requestedPort ?? 7777, requestedPort ?? 7777, 'test-token-abc'),
+        openUrl: (url) => {
+          openedUrls.push(url);
+          return true;
+        },
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(openedUrls).toHaveLength(1);
+    const opened = new URL(openedUrls[0]!);
+    expect(opened.origin).toBe('https://dioramai.design');
+    expect(opened.searchParams.get('bridgeToken')).toBe('test-token-abc');
+    expect(opened.searchParams.get('bridgeUrl')).toBe('http://127.0.0.1:7777');
+  });
+
+  it('DIORAMAI_WEB_SHELL_URL env overrides the default shell URL', async () => {
+    await initProject();
+    const capture = createIo();
+    const openedUrls: string[] = [];
+
+    const exitCode = await runCli(
+      ['dev', '--open', '--projectRoot', projectRoot],
+      { DIORAMAI_WEB_SHELL_URL: 'http://localhost:5173/' },
+      capture.io,
+      {
+        startBridgeServer: async (requestedPort) =>
+          fakeStartedBridge(projectRoot, requestedPort ?? 7777, requestedPort ?? 7777),
+        openUrl: (url) => {
+          openedUrls.push(url);
+          return true;
+        },
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(openedUrls).toHaveLength(1);
+    const opened = new URL(openedUrls[0]!);
+    expect(opened.origin).toBe('http://localhost:5173');
+    expect(capture.stdout()).toContain('- Shell (local): http://localhost:5173/');
+  });
+});
+
+describe('dioramai doctor CLI', () => {
+  let projectRoot = '';
+
+  afterEach(async () => {
+    if (projectRoot) await rm(projectRoot, { recursive: true, force: true });
+    projectRoot = '';
+  });
+
+  it('passes for a freshly initialized vite-r3f project', async () => {
+    projectRoot = await mkdtemp(join(tmpdir(), 'dioramai-cli-doctor-'));
+    const initialized = await initializeDioramaiProject(projectRoot, { template: 'vite-r3f' });
+    expect(initialized.ok).toBe(true);
+
+    const capture = createIo();
+    const exitCode = await runCli(
+      ['doctor', '--projectRoot', projectRoot],
+      {},
+      capture.io,
+    );
+
+    expect(exitCode).toBe(0);
+    expect(capture.stdout()).toContain('Dioramai doctor for');
+    expect(capture.stdout()).toContain('Doctor passed.');
+    expect(capture.stdout()).not.toContain('[fail]');
+  });
+
+  it('fails for a project with an unparseable generated scene', async () => {
+    projectRoot = await mkdtemp(join(tmpdir(), 'dioramai-cli-doctor-fail-'));
+    const initialized = await initializeDioramaiProject(projectRoot, { template: 'vite-r3f' });
+    expect(initialized.ok).toBe(true);
+    await writeFile(resolve(projectRoot, 'src/generated/DioramaiScene.generated.tsx'), 'export const broken = true;', 'utf8');
+
+    const capture = createIo();
+    const exitCode = await runCli(
+      ['doctor', '--projectRoot', projectRoot],
+      {},
+      capture.io,
+    );
+
+    expect(exitCode).toBe(1);
+    expect(capture.stdout()).toContain('[fail]');
+    expect(capture.stdout()).toContain('Doctor found blocking issues.');
+  });
+});
+
+describe('dioramai help / default command', () => {
+  it('prints usage for --help and exits 0', async () => {
+    const capture = createIo();
+    const exitCode = await runCli(['--help'], {}, capture.io);
+    expect(exitCode).toBe(0);
+    expect(capture.stdout()).toContain('dioramai');
+    expect(capture.stdout()).toContain('init');
+    expect(capture.stdout()).toContain('dev');
+    expect(capture.stdout()).toContain('doctor');
+  });
+
+  it('prints usage for unknown command and exits 0', async () => {
+    const capture = createIo();
+    const exitCode = await runCli([], {}, capture.io);
+    expect(exitCode).toBe(0);
+    expect(capture.stdout()).toContain('dioramai');
+  });
+});
+
+describe('dioramai init default template', () => {
+  let projectRoot = '';
+
+  afterEach(async () => {
+    if (projectRoot) await rm(projectRoot, { recursive: true, force: true });
+    projectRoot = '';
+  });
+
+  it('defaults to vite-r3f template when --template is omitted', async () => {
+    projectRoot = await mkdtemp(join(tmpdir(), 'dioramai-cli-default-'));
+    const capture = createIo();
+
+    const exitCode = await runCli(
+      ['init', '--projectRoot', projectRoot],
+      {},
+      capture.io,
+    );
+
+    expect(exitCode).toBe(0);
+    const pkg = JSON.parse(await readFile(resolve(projectRoot, 'package.json'), 'utf8')) as { scripts?: { dev?: string } };
+    expect(pkg.scripts?.dev).toBe('vite');
   });
 });

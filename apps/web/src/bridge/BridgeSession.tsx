@@ -8,9 +8,15 @@ const shouldConnectBridge =
 export function BridgeSession() {
   const applyBridgeScene = useSceneStore((s) => s.applyBridgeScene);
   const setBridgeStatus = useSceneStore((s) => s.setBridgeStatus);
+  const setBridgeConnecting = useSceneStore((s) => s.setBridgeConnecting);
+  const setBridgeEnabled = useSceneStore((s) => s.setBridgeEnabled);
 
   useEffect(() => {
-    if (!shouldConnectBridge) return;
+    if (!shouldConnectBridge) {
+      setBridgeEnabled(false);
+      setBridgeConnecting(false);
+      return;
+    }
     let closed = false;
 
     void fetchBridgeScene()
@@ -29,14 +35,19 @@ export function BridgeSession() {
         }
       });
 
-    if (typeof EventSource === 'undefined')
+    if (typeof EventSource === 'undefined') {
+      setBridgeConnecting(false);
       return () => {
         closed = true;
-    };
+      };
+    }
 
     const events = new EventSource(bridgeUrlFor('/events'));
     events.onopen = () => {
-      if (!closed) setBridgeStatus(true, null);
+      if (!closed) {
+        setBridgeConnecting(false);
+        setBridgeStatus(true, null);
+      }
     };
     events.addEventListener('scene', (event) => {
       if (closed) return;
@@ -45,14 +56,17 @@ export function BridgeSession() {
       setBridgeStatus(true, null);
     });
     events.onerror = () => {
-      if (!closed) setBridgeStatus(false, 'Bridge event stream disconnected.');
+      if (!closed) {
+        setBridgeConnecting(false);
+        setBridgeStatus(false, 'Bridge event stream disconnected.');
+      }
     };
 
     return () => {
       closed = true;
       events.close();
     };
-  }, [applyBridgeScene, setBridgeStatus]);
+  }, [applyBridgeScene, setBridgeStatus, setBridgeConnecting, setBridgeEnabled]);
 
   return null;
 }

@@ -79,10 +79,14 @@ export interface SceneState {
   timelineCommands: Command[];
   timelineError: string | null;
   bridgeConnected: boolean;
+  bridgeConnecting: boolean;
+  bridgeEnabled: boolean;
   bridgeLastError: string | null;
   dispatch: (command: Command) => void;
   applyBridgeScene: (scene: Scene, command?: Command) => void;
   setBridgeStatus: (connected: boolean, error: string | null) => void;
+  setBridgeConnecting: (connecting: boolean) => void;
+  setBridgeEnabled: (enabled: boolean) => void;
   setTimelineCommandAt: (index: number, command: Command) => void;
   recomputeFromTimeline: () => boolean;
   clearTimelineError: () => void;
@@ -107,6 +111,8 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   timelineCommands: [],
   timelineError: null,
   bridgeConnected: false,
+  bridgeConnecting: true,
+  bridgeEnabled: true,
   bridgeLastError: null,
 
   dispatch: (command) => {
@@ -228,6 +234,10 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
 
   setBridgeStatus: (bridgeConnected, bridgeLastError) =>
     set({ bridgeConnected, bridgeLastError }),
+
+  setBridgeConnecting: (bridgeConnecting) => set({ bridgeConnecting }),
+
+  setBridgeEnabled: (bridgeEnabled) => set({ bridgeEnabled }),
 
   setTimelineCommandAt: (index, command) =>
     set((state) => {
