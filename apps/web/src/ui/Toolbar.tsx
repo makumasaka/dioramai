@@ -23,6 +23,7 @@ export function Toolbar() {
   const futureCount = useSceneStore((s) => s.future.length);
   const bridgeConnected = useSceneStore((s) => s.bridgeConnected);
   const bridgeLastError = useSceneStore((s) => s.bridgeLastError);
+  const disconnect = useSceneStore((s) => s.disconnect);
 
   const selectedNode = selectedId ? scene.nodes[selectedId] : null;
   const isRootSelected = selectedId === scene.rootId;
@@ -70,7 +71,17 @@ export function Toolbar() {
 
         <div className="toolbar__status">
           {bridgeConnected ? (
-            <span className="toolbar__status--muted">Bridge connected</span>
+            <span className="toolbar__status--connected">
+              Bridge connected
+              <button
+                type="button"
+                className="toolbar__disconnect-btn"
+                onClick={disconnect}
+                title="Disconnect from bridge and return to onboarding"
+              >
+                Disconnect
+              </button>
+            </span>
           ) : bridgeLastError ? (
             <span className="toolbar__status--muted" title={bridgeLastError}>
               Bridge offline

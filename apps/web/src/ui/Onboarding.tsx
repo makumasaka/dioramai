@@ -1,6 +1,9 @@
 import { useState } from 'react';
 import { useSceneStore } from '../store/sceneStore';
-import { fetchBridgeScene, getBridgeUrl } from '../bridge/bridgeClient';
+import { fetchBridgeScene, getBridgeUrl, getBridgeToken } from '../bridge/bridgeClient';
+
+const BRIDGE_TOKEN_STORAGE_KEY = 'dioramai.bridgeToken';
+const BRIDGE_URL_STORAGE_KEY = 'dioramai.bridgeUrl';
 
 export function Onboarding() {
   const setBridgeStatus = useSceneStore((s) => s.setBridgeStatus);
@@ -9,11 +12,13 @@ export function Onboarding() {
   const applyBridgeScene = useSceneStore((s) => s.applyBridgeScene);
   const bridgeLastError = useSceneStore((s) => s.bridgeLastError);
   const [retrying, setRetrying] = useState(false);
+  const [showManual, setShowManual] = useState(false);
+  const [manualUrl, setManualUrl] = useState('http://127.0.0.1:7777');
+  const [manualToken, setManualToken] = useState('');
 
-  const handleRetry = async () => {
+  const attemptConnect = async () => {
     setRetrying(true);
     setBridgeEnabled(true);
-    setBridgeConnecting(true);
     try {
       const result = await fetchBridgeScene();
       if (result.ok) {
@@ -30,7 +35,21 @@ export function Onboarding() {
     }
   };
 
+  const handleRetry = () => { void attemptConnect(); };
+
+  const handleManualConnect = () => {
+    if (typeof window !== 'undefined') {
+      window.localStorage.setItem(BRIDGE_URL_STORAGE_KEY, manualUrl.replace(/\/+$/, ''));
+      if (manualToken.trim()) {
+        window.localStorage.setItem(BRIDGE_TOKEN_STORAGE_KEY, manualToken.trim());
+      }
+    }
+    setBridgeConnecting(true);
+    void attemptConnect();
+  };
+
   const bridgeUrl = getBridgeUrl();
+  const bridgeToken = getBridgeToken();
 
   return (
     <div className="onboarding">
@@ -79,23 +98,84 @@ export function Onboarding() {
             <span className="onboarding__status-label">Bridge URL:</span>
             <code className="onboarding__status-value">{bridgeUrl}</code>
           </div>
+          {bridgeToken && (
+            <div className="onboarding__status-row">
+              <span className="onboarding__status-label">Token:</span>
+              <code className="onboarding__status-value onboarding__status-value--muted">
+                {bridgeToken.slice(0, 6)}&hellip;{bridgeToken.slice(-4)}
+              </code>
+            </div>
+          )}
           <div className="onboarding__status-row">
             <span
               className={`onboarding__status-indicator onboarding__status-indicator--${bridgeLastError ? 'error' : 'waiting'}`}
             >
               {bridgeLastError
-                ? `Bridge offline — ${bridgeLastError}`
+                ? `No local runtime detected — ${bridgeLastError}`
                 : 'Searching for local runtime\u2026'}
             </span>
           </div>
-          <button
-            type="button"
-            className="onboarding__retry-btn"
-            onClick={() => { void handleRetry(); }}
-            disabled={retrying}
-          >
-            {retrying ? 'Searching\u2026' : 'Search Local Runtime'}
-          </button>
+          <div className="onboarding__status-actions">
+            <button
+              type="button"
+              className="onboarding__retry-btn"
+              onClick={handleRetry}
+              disabled={retrying}
+            >
+              {retrying ? 'Searching\u2026' : 'Search Local Runtime'}
+            </button>
+            <button
+              type="button"
+              className="onboarding__manual-toggle"
+              onClick={() => { setShowManual((v) => !v); }}
+            >
+              {showManual ? 'Cancel' : 'Connect manually'}
+            </button>
+          </div>
+
+          {showManual && (
+            <div className="onboarding__manual">
+              <p className="onboarding__manual-hint">
+                Paste the bridge URL and token from your terminal output.
+              </p>
+              <div className="onboarding__manual-field">
+                <label className="onboarding__manual-label" htmlFor="manual-bridge-url">
+                  Bridge URL
+                </label>
+                <input
+                  id="manual-bridge-url"
+                  type="text"
+                  className="onboarding__manual-input"
+                  value={manualUrl}
+                  onChange={(e) => { setManualUrl(e.target.value); }}
+                  placeholder="http://127.0.0.1:7777"
+                  spellCheck={false}
+                />
+              </div>
+              <div className="onboarding__manual-field">
+                <label className="onboarding__manual-label" htmlFor="manual-bridge-token">
+                  Bridge Token
+                </label>
+                <input
+                  id="manual-bridge-token"
+                  type="text"
+                  className="onboarding__manual-input"
+                  value={manualToken}
+                  onChange={(e) => { setManualToken(e.target.value); }}
+                  placeholder="Paste token from terminal"
+                  spellCheck={false}
+                />
+              </div>
+              <button
+                type="button"
+                className="onboarding__retry-btn"
+                onClick={handleManualConnect}
+                disabled={retrying || !manualUrl.trim()}
+              >
+                {retrying ? 'Connecting\u2026' : 'Connect to this bridge'}
+              </button>
+            </div>
+          )}
         </div>
       </div>
     </div>

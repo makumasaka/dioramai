@@ -8,7 +8,7 @@ import {
   type Command,
   type Scene,
 } from '@dioramai/core';
-import { postBridgeLoadScene, postBridgeUpdateTransform } from '../bridge/bridgeClient';
+import { clearBridgeStorage, postBridgeLoadScene, postBridgeUpdateTransform } from '../bridge/bridgeClient';
 
 const HISTORY_LIMIT = 100;
 const LOG_LIMIT = 200;
@@ -82,11 +82,13 @@ export interface SceneState {
   bridgeConnecting: boolean;
   bridgeEnabled: boolean;
   bridgeLastError: string | null;
+  bridgeSessionKey: number;
   dispatch: (command: Command) => void;
   applyBridgeScene: (scene: Scene, command?: Command) => void;
   setBridgeStatus: (connected: boolean, error: string | null) => void;
   setBridgeConnecting: (connecting: boolean) => void;
   setBridgeEnabled: (enabled: boolean) => void;
+  disconnect: () => void;
   setTimelineCommandAt: (index: number, command: Command) => void;
   recomputeFromTimeline: () => boolean;
   clearTimelineError: () => void;
@@ -114,6 +116,7 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   bridgeConnecting: true,
   bridgeEnabled: true,
   bridgeLastError: null,
+  bridgeSessionKey: 0,
 
   dispatch: (command) => {
     const state = get();
@@ -238,6 +241,20 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   setBridgeConnecting: (bridgeConnecting) => set({ bridgeConnecting }),
 
   setBridgeEnabled: (bridgeEnabled) => set({ bridgeEnabled }),
+
+  disconnect: () => {
+    clearBridgeStorage();
+    if (typeof window !== 'undefined') {
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+    set((state) => ({
+      bridgeConnected: false,
+      bridgeConnecting: false,
+      bridgeEnabled: true,
+      bridgeLastError: null,
+      bridgeSessionKey: state.bridgeSessionKey + 1,
+    }));
+  },
 
   setTimelineCommandAt: (index, command) =>
     set((state) => {

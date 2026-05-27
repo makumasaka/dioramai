@@ -74,6 +74,12 @@ export const BRIDGE_URL =
 const BRIDGE_TOKEN_STORAGE_KEY = 'dioramai.bridgeToken';
 const BRIDGE_URL_STORAGE_KEY = 'dioramai.bridgeUrl';
 
+export const clearBridgeStorage = (): void => {
+  if (typeof window === 'undefined') return;
+  window.localStorage.removeItem(BRIDGE_TOKEN_STORAGE_KEY);
+  window.localStorage.removeItem(BRIDGE_URL_STORAGE_KEY);
+};
+
 const isLocalBridgeUrl = (value: string): boolean => {
   try {
     const url = new URL(value);
