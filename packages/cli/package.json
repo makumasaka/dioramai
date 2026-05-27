@@ -1,6 +1,6 @@
 {
   "name": "dioramai",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Local-first CLI and bridge for Dioramai runtime sync in React Three Fiber repos.",
   "license": "MIT",
   "type": "module",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/mkumasaka/dioramai.git"
+    "url": "git+https://github.com/mkumasaka/dioramai.git"
   },
   "homepage": "https://dioramai.design",
   "bugs": {
