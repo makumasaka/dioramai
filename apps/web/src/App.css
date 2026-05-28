@@ -870,22 +870,54 @@
 }
 
 /* Onboarding screen */
+/* Wrapper that sits between the fixed overlay and the editor — receives the blur */
+.editor-host {
+  height: 100%;
+}
+
+.editor-host--obscured {
+  filter: blur(7px);
+  pointer-events: none;
+  user-select: none;
+}
+
+/* Fixed backdrop — dark tint only, no backdrop-filter */
 .onboarding {
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  min-height: 100vh;
-  padding: 48px 24px;
-  background: var(--bg);
+  position: fixed;
+  inset: 0;
+  z-index: 200;
   overflow-y: auto;
+  background: rgba(0, 0, 0, 0.3);
+  animation: onboarding-in 200ms ease both;
+}
+
+@keyframes onboarding-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+/* Bootstrap-style inner wrapper: min-height: 100% in the scrollable container
+   lets flexbox center the card when there's room, scroll when there isn't. */
+.onboarding__wrapper {
+  display: flex;
+  min-height: 100%;
+  align-items: center;
+  justify-content: center;
+  padding: 32px 24px;
 }
 
 .onboarding__content {
+  position: relative;
   width: 100%;
-  max-width: 640px;
+  max-width: 560px;
   display: flex;
   flex-direction: column;
-  gap: 32px;
+  gap: 28px;
+  background: #111520;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 16px;
+  padding: 36px 40px;
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 4px 16px rgba(0, 0, 0, 0.4);
 }
 
 .onboarding__header {

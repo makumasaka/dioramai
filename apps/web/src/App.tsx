@@ -121,7 +121,10 @@ function App() {
   return (
     <>
       <BridgeSession key={bridgeSessionKey} />
-      {showOnboarding ? <Onboarding /> : <Editor />}
+      <div className={showOnboarding ? 'editor-host editor-host--obscured' : 'editor-host'}>
+        <Editor />
+      </div>
+      {showOnboarding && <Onboarding />}
     </>
   );
 }

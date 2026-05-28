@@ -53,6 +53,7 @@ export function Onboarding() {
 
   return (
     <div className="onboarding">
+      <div className="onboarding__wrapper">
       <div className="onboarding__content">
         <div className="onboarding__header">
           <h1 className="onboarding__title">Dioramai</h1>
@@ -177,6 +178,7 @@ export function Onboarding() {
             </div>
           )}
         </div>
+      </div>
       </div>
     </div>
   );
