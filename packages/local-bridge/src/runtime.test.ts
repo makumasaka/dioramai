@@ -98,6 +98,7 @@ describe('Dioramai project onboarding', () => {
       'src/generated/dioramai.scene.json',
       'src/components/README.md',
       '.cursor/rules/dioramai.mdc',
+      '.cursor/mcp.json',
     ]));
 
     const packageJson = JSON.parse(await readFile(resolve(initRoot, 'package.json'), 'utf8')) as {
@@ -124,6 +125,37 @@ describe('Dioramai project onboarding', () => {
     expect(generated).not.toContain(initRoot);
     expect(parseSceneFromR3fSyncModule(generated).ok).toBe(true);
     await expect(stat(resolve(initRoot, '.dioramai'))).rejects.toThrow();
+  });
+
+  it('treats folders containing only IDE/OS artifacts as empty', async () => {
+    initRoot = await mkdtemp(join(tmpdir(), 'dioramai-init-artifacts-'));
+    // Simulate what macOS + Cursor create automatically
+    await mkdir(resolve(initRoot, '.cursor'), { recursive: true });
+    await writeFile(resolve(initRoot, '.DS_Store'), '', 'utf8');
+
+    const result = await initializeDioramaiProject(initRoot, { template: 'vite-r3f' });
+    expect(result.ok).toBe(true);
+  });
+
+  it('writes .cursor/mcp.json and .cursor/rules/dioramai.mdc for config template', async () => {
+    initRoot = await mkdtemp(join(tmpdir(), 'dioramai-init-config-'));
+
+    const result = await initializeDioramaiProject(initRoot, { template: 'config' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.wroteFiles).toContain('.cursor/rules/dioramai.mdc');
+    expect(result.data.wroteFiles).toContain('.cursor/mcp.json');
+
+    const rule = await readFile(resolve(initRoot, '.cursor/rules/dioramai.mdc'), 'utf8');
+    expect(rule).toContain('dioramai-scene-start');
+    expect(rule).toContain('import_glb_asset');
+
+    const mcp = JSON.parse(await readFile(resolve(initRoot, '.cursor/mcp.json'), 'utf8')) as {
+      mcpServers: { dioramai: { command: string; args: string[] } };
+    };
+    expect(mcp.mcpServers.dioramai.command).toBe('npx');
+    expect(mcp.mcpServers.dioramai.args).toEqual(['dioramai', 'mcp']);
   });
 
   it('refuses to scaffold a non-empty folder without --force', async () => {

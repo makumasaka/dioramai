@@ -79,6 +79,7 @@ describe('dioramai init CLI', () => {
     expect(capture.stdout()).toContain('3. npx dioramai dev --open');
     expect(capture.stdout()).toContain('4. Add GLBs to public/assets/models');
     expect(capture.stdout()).toContain('5. Open this repo in Cursor');
+    expect(capture.stdout()).toContain('6. Reload Cursor MCP panel');
     expect(capture.stdout()).not.toContain('Pairing token:');
     await expect(stat(resolve(projectRoot, '.dioramai'))).rejects.toThrow();
   });
@@ -442,6 +443,7 @@ describe('dioramai help / default command', () => {
     expect(capture.stdout()).toContain('init');
     expect(capture.stdout()).toContain('dev');
     expect(capture.stdout()).toContain('doctor');
+    expect(capture.stdout()).toContain('mcp');
   });
 
   it('prints usage for unknown command and exits 0', async () => {
@@ -449,6 +451,16 @@ describe('dioramai help / default command', () => {
     const exitCode = await runCli([], {}, capture.io);
     expect(exitCode).toBe(0);
     expect(capture.stdout()).toContain('dioramai');
+  });
+});
+
+describe('dioramai mcp command', () => {
+  it('exits 1 with a clear message when the bridge is not running', async () => {
+    const capture = createIo();
+    // Port 1 is never listening; the mcp command should fail fast.
+    const exitCode = await runCli(['mcp', '--port', '1'], {}, capture.io);
+    expect(exitCode).toBe(1);
+    expect(capture.stderr()).toContain('npx dioramai dev');
   });
 });
 

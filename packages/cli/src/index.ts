@@ -135,6 +135,7 @@ const printInitNextSteps = (io: CliIo, installStatus: InitInstallStatus): void =
   io.stdout.write('3. npx dioramai dev --open\n');
   io.stdout.write('4. Add GLBs to public/assets/models\n');
   io.stdout.write('5. Open this repo in Cursor\n');
+  io.stdout.write('6. Reload Cursor MCP panel — dioramai server is configured in .cursor/mcp.json\n');
 };
 
 const printDevNextSteps = (io: CliIo): void => {
@@ -232,6 +233,104 @@ const printDoctor = (io: CliIo, result: Awaited<ReturnType<typeof doctorDioramai
     io.stdout.write(`\nGLBs:\n${result.data.glbFiles.map((file) => `- ${file}`).join('\n')}\n`);
   }
   io.stdout.write(`\n${result.data.ok ? 'Doctor passed.' : 'Doctor found blocking issues.'}\n`);
+};
+
+type JsonRpcId = string | number | null;
+type JsonRpcRequest = { jsonrpc: '2.0'; id?: JsonRpcId; method: string; params?: Record<string, unknown> };
+
+const mcpTools = [
+  { name: 'get_project_status', description: 'Return the local Dioramai bridge project status and configured safe paths.', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } },
+  { name: 'get_scene', description: 'Return the active Dioramai bridge scene.', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } },
+  { name: 'load_scene', description: 'Replace the shared bridge scene from JSON text or a parsed scene graph.', inputSchema: { type: 'object', properties: { json: { type: 'string' }, scene: { type: 'object', additionalProperties: true }, dryRun: { type: 'boolean' } }, additionalProperties: false } },
+  { name: 'register_asset', description: 'Register a project-relative GLB/GLTF asset and add an asset-backed scene node.', inputSchema: { type: 'object', properties: { workspaceRelativePath: { type: 'string' }, path: { type: 'string' }, name: { type: 'string' }, importMode: { type: 'string', enum: ['single', 'shallow'] }, semanticRole: { type: 'string', enum: ['product', 'display', 'seating', 'lighting', 'light', 'environment', 'navigation', 'decor', 'container', 'unknown'] }, parentId: { type: 'string' }, dryRun: { type: 'boolean' } }, additionalProperties: false } },
+  { name: 'import_glb_asset', description: 'Alias for register_asset. Import a project-relative GLB/GLTF path as an asset-backed scene node.', inputSchema: { type: 'object', properties: { path: { type: 'string' }, workspaceRelativePath: { type: 'string' }, name: { type: 'string' }, importMode: { type: 'string', enum: ['single', 'shallow'] }, semanticRole: { type: 'string', enum: ['product', 'display', 'seating', 'lighting', 'light', 'environment', 'navigation', 'decor', 'container', 'unknown'] }, parentId: { type: 'string' }, dryRun: { type: 'boolean' } }, additionalProperties: false } },
+  { name: 'update_transform', description: 'Apply a deterministic UPDATE_TRANSFORM command for one node.', inputSchema: { type: 'object', properties: { nodeId: { type: 'string' }, patch: { type: 'object', properties: { position: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 }, rotation: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 }, scale: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 } }, additionalProperties: false }, dryRun: { type: 'boolean' } }, required: ['nodeId', 'patch'], additionalProperties: false } },
+  { name: 'export_r3f', description: 'Export the shared scene to the project generated R3F sync module.', inputSchema: { type: 'object', properties: { write: { type: 'boolean' } }, additionalProperties: false } },
+  { name: 'write_scene_to_file', description: 'Write the current canonical scene to the generated R3F module and scene JSON file.', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } },
+  { name: 'reload_scene_from_file', description: 'Reload canonical scene state from the generated R3F scene block or scene JSON file.', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } },
+  { name: 'sync_code', description: 'Synchronize scene/code. Default writes code; use direction "fromCode" to reload the generated scene block.', inputSchema: { type: 'object', properties: { direction: { type: 'string', enum: ['toCode', 'fromCode'] } }, additionalProperties: false } },
+];
+
+const runMcpStdioServer = async (port: number, io: CliIo): Promise<number> => {
+  const bridgeUrl = `http://127.0.0.1:${port}`;
+  const token = process.env.DIORAMAI_BRIDGE_TOKEN;
+
+  try {
+    const health = await fetch(`${bridgeUrl}/health`);
+    if (!health.ok) throw new Error('unhealthy');
+  } catch {
+    io.stderr.write(`Dioramai MCP requires a running local bridge at ${bridgeUrl}. Start it with: npx dioramai dev\n`);
+    return 1;
+  }
+
+  const reply = (id: JsonRpcId | undefined, result: unknown): void => {
+    if (id === undefined) return;
+    process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, result })}\n`);
+  };
+  const replyError = (id: JsonRpcId | undefined, code: number, message: string): void => {
+    if (id === undefined) return;
+    process.stdout.write(`${JSON.stringify({ jsonrpc: '2.0', id, error: { code, message } })}\n`);
+  };
+  const callBridge = async (name: string, args: unknown): Promise<unknown> => {
+    const res = await fetch(`${bridgeUrl}/tools/${encodeURIComponent(name)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', ...(token ? { 'x-dioramai-token': token } : {}) },
+      body: JSON.stringify(args ?? {}),
+    });
+    return res.json() as Promise<unknown>;
+  };
+  const toolResult = (payload: unknown) => ({
+    content: [{ type: 'text', text: JSON.stringify(payload, null, 2) }],
+    isError: typeof payload === 'object' && payload !== null && 'ok' in payload && (payload as { ok: unknown }).ok === false,
+  });
+
+  const handle = async (req: JsonRpcRequest): Promise<void> => {
+    switch (req.method) {
+      case 'initialize':
+        reply(req.id, { protocolVersion: '2024-11-05', capabilities: { tools: {} }, serverInfo: { name: 'dioramai', version: '0.1.0' } });
+        return;
+      case 'notifications/initialized':
+        return;
+      case 'ping':
+        reply(req.id, {});
+        return;
+      case 'tools/list':
+        reply(req.id, { tools: mcpTools });
+        return;
+      case 'tools/call': {
+        const name = typeof req.params?.name === 'string' ? req.params.name : '';
+        if (!mcpTools.some((t) => t.name === name)) {
+          reply(req.id, toolResult({ ok: false, error: { code: 'TOOL_NOT_FOUND', message: `Unknown tool: ${name}` } }));
+          return;
+        }
+        reply(req.id, toolResult(await callBridge(name, req.params?.arguments ?? {})));
+        return;
+      }
+      default:
+        replyError(req.id, -32601, `Method not found: ${req.method}`);
+    }
+  };
+
+  let buf = '';
+  process.stdin.setEncoding('utf8');
+  process.stdin.on('data', (chunk: string) => {
+    buf += chunk;
+    let nl = buf.indexOf('\n');
+    while (nl >= 0) {
+      const line = buf.slice(0, nl).trim();
+      buf = buf.slice(nl + 1);
+      nl = buf.indexOf('\n');
+      if (!line) continue;
+      void Promise.resolve()
+        .then(() => handle(JSON.parse(line) as JsonRpcRequest))
+        .catch((err: unknown) => replyError(undefined, -32603, err instanceof Error ? err.message : String(err)));
+    }
+  });
+
+  return new Promise<number>((resolve) => {
+    process.stdin.on('end', () => resolve(0));
+    process.stdin.on('error', () => resolve(1));
+  });
 };
 
 export const runCli = async (
@@ -348,6 +447,10 @@ export const runCli = async (
       return 0;
     }
 
+    case 'mcp': {
+      return runMcpStdioServer(port, io);
+    }
+
     case 'export': {
       const runtime = new DioramaiBridgeRuntime(await loadInitialBridgeScene({ projectRoot }), { projectRoot });
       const result = await runtime.callTool('write_scene_to_file', {});
@@ -371,6 +474,7 @@ export const runCli = async (
           '  init --template vite-r3f  Scaffold a minimal local Vite/R3F project',
           '  doctor                    Check local project readiness',
           '  dev --open                Start the local repo bridge',
+          '  mcp                       Start the MCP stdio proxy (used by Cursor agent tools)',
           '  export                    Write the generated R3F scene module',
           '  validate                  Return raw bridge project status JSON',
           '',
