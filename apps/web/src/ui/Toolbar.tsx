@@ -1,16 +1,6 @@
 import { useSceneStore } from '../store/sceneStore';
-import { createNode, getParent, type Vec3 } from '@dioramai/core';
+import { getParent } from '@dioramai/core';
 import { SceneLoader } from './SceneLoader';
-
-const PALETTE: Vec3[] = [
-  [0, 0.5, 0],
-  [1.5, 0.5, 0],
-  [-1.5, 0.5, 0],
-  [0, 0.5, 1.5],
-  [0, 0.5, -1.5],
-  [1.5, 0.5, 1.5],
-  [-1.5, 0.5, -1.5],
-];
 
 export function Toolbar() {
   const scene = useSceneStore((s) => s.scene);
@@ -28,18 +18,6 @@ export function Toolbar() {
   const selectedNode = selectedId ? scene.nodes[selectedId] : null;
   const isRootSelected = selectedId === scene.rootId;
   const parentOfSelected = selectedId ? getParent(scene, selectedId) : undefined;
-
-  const totalNodes = Object.keys(scene.nodes).length - 1;
-
-  const handleAdd = () => {
-    const parentId = selectedId ?? scene.rootId;
-    const position = PALETTE[totalNodes % PALETTE.length];
-    const node = createNode({
-      name: `Cube ${totalNodes + 1}`,
-      transform: { position },
-    });
-    dispatch({ type: 'ADD_NODE', parentId, node });
-  };
 
   const handleDelete = () => {
     if (!selectedId || isRootSelected) return;
@@ -118,9 +96,6 @@ export function Toolbar() {
         <div className="toolbar__tool-divider" aria-hidden="true" />
 
         <div className="toolbar__tool-group">
-          <button type="button" onClick={handleAdd}>
-            Add Cube
-          </button>
           <button type="button" onClick={handleDelete} disabled={!selectedId || isRootSelected}>
             Delete
           </button>
