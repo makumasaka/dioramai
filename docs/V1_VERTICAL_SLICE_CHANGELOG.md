@@ -39,37 +39,7 @@ It focuses on mutation boundaries, runtime contracts, and extension points.
   `REGISTER_ASSET`.
 - Determinism and no-op behavior are preserved by reducer checks and tests.
 
-## 2) Generation Layer
-
-### New package
-
-- Added `@dioramai/generation`:
-  - [`packages/generation/src/types.ts`](../packages/generation/src/types.ts)
-  - [`packages/generation/src/adapter.ts`](../packages/generation/src/adapter.ts)
-  - [`packages/generation/src/index.ts`](../packages/generation/src/index.ts)
-
-### Contract
-
-- `GeneratedAsset` is the generation handoff artifact:
-  - `id`, `provider`, `prompt`, `format`, optional `uri`/`localPath`,
-    optional metadata.
-- `GeneratorAdapter.generateAsset(input)` is provider-agnostic.
-
-### Behavior
-
-- Mock-first by default.
-- Optional Meshy live path is gated by `MESHY_API_KEY`.
-- If live Meshy is requested without key, behavior falls back to mock and
-  records fallback metadata.
-- Prompt-level caching is included in the adapter.
-
-### Output configuration
-
-- Configurable output directory and URL base:
-  - default `assetOutputDir`: `apps/demo-export/public/assets/generated`
-  - default `publicUrlBase`: `/assets/generated`
-
-## 3) Ingestion Layer
+## 2) Ingestion Layer (formerly section 3)
 
 ### New package
 
@@ -163,10 +133,8 @@ It focuses on mutation boundaries, runtime contracts, and extension points.
 
 ## Additional providers (Tripo/Luma)
 
-- Add provider-specific adapters behind the same `GeneratorAdapter` interface
-  in `@dioramai/generation`.
-- Keep `GeneratedAsset` contract stable.
-- Continue avoiding provider-specific scene mutation logic.
+- 3D model generation is handled by external MCP servers (e.g. Meshy MCP).
+  Once a GLB is available locally it enters the normal ingestion path.
 
 ## Ingestion enrichment
 

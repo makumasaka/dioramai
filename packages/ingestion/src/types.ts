@@ -1,6 +1,6 @@
 import type { Command, DioramaiAsset } from '@dioramai/core';
 
-export type AssetProvider = 'manual' | 'upload' | 'mock' | 'meshy' | 'tripo' | 'luma';
+export type AssetProvider = 'manual' | 'upload' | 'mock';
 
 export type IngestAssetInput =
   {

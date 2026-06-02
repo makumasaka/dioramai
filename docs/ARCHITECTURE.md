@@ -122,12 +122,16 @@ The MVP tool surface is intentionally narrow:
 - `sync_code`
 
 MCP operates through `@dioramai/local-bridge`. It must not access the filesystem
-directly, start generation workflows, run shell commands, evaluate JavaScript,
-touch Zustand state, or expose R3F/Three objects.
+directly, run shell commands, evaluate JavaScript, touch Zustand state, or
+expose R3F/Three objects.
 
 ## Deferred Packages
 
-`@dioramai/agent-interface`, `@dioramai/generation`, and
-`@dioramai/generation-meshy` are retained only as deferred historical
-experiments. They are not part of the P0 runtime-sync bridge, root scripts, or
-MCP tool path.
+`@dioramai/agent-interface` is retained as a thin MCP-lite orchestration layer
+for scene editing workflows. It is not part of the P0 runtime-sync bridge or
+root scripts.
+
+3D model generation (Meshy, Tripo, World Labs, etc.) is intentionally out of
+scope for Dioramai. Generation is handled by separate MCP servers (e.g. a
+Meshy MCP). Once a model is available as a local GLB, it can be registered and
+placed into the scene through the normal ingestion path.

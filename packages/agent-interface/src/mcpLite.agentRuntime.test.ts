@@ -312,7 +312,6 @@ describe('MCP-lite agent runtime — safety surface', () => {
       'exportJSON',
       'exportR3F',
       'exportScene',
-      'generateAsset',
       'getActionLog',
       'getBehaviors',
       'getScene',

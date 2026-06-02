@@ -18,7 +18,6 @@
   "dependencies": {
     "@dioramai/core": "*",
     "@dioramai/export-r3f": "*",
-    "@dioramai/generation": "*",
     "@dioramai/ingestion": "*",
     "@dioramai/schema": "*",
     "zod": "^3.25.76"

@@ -1,7 +1,4 @@
 import { describe, expect, it } from 'vitest';
-import { mkdtemp, rm } from 'node:fs/promises';
-import { join } from 'node:path';
-import { tmpdir } from 'node:os';
 import { parseSceneJson, type Scene } from '@dioramai/schema';
 import { showroomScene } from '@dioramai/core';
 import { createAgentRuntime, createMcpLiteRuntime } from './mcpLite';
@@ -116,48 +113,6 @@ describe('createMcpLiteRuntime', () => {
 
     expect(arranged.changed).toBe(true);
     expect(expectOk(runtime.getScene()).scene.nodes.product_01!.transform.position).not.toEqual(before);
-  });
-
-  it('generateAsset and ingestAsset support mock-first workflow via Agent Runtime', async () => {
-    const assetOutputDir = await mkdtemp(join(tmpdir(), 'dioramai-agent-runtime-'));
-    try {
-      const runtime = createMcpLiteRuntime(undefined, {
-        generation: {
-          assetOutputDir,
-          publicUrlBase: '/assets/generated',
-        },
-      });
-      const generated = await runtime.generateAsset({
-        prompt: 'Generate a modern chair product display scene',
-        provider: 'meshy',
-        mode: 'live',
-      });
-      expect(generated.ok).toBe(true);
-      if (!generated.ok) return;
-      expect(generated.data.asset.provider).toBe('mock');
-
-      const ingested = runtime.ingestAsset({
-        kind: 'generated',
-        asset: generated.data.asset,
-      });
-      expect(ingested.ok).toBe(true);
-      if (!ingested.ok) return;
-      expect(ingested.data.appliedCommandCount).toBe(2);
-
-      const scene = expectOk(runtime.getScene()).scene;
-      const addedNode = Object.values(scene.nodes).find(
-        (node) => node.id !== scene.rootId && node.semantics?.role === 'product',
-      );
-      expect(addedNode).toBeDefined();
-      expect(addedNode?.semantics?.source).toBe('import');
-      expect(addedNode?.metadata.source).toBe('generator');
-      expect(addedNode?.metadata.provider).toBe('mock');
-      expect(typeof addedNode?.metadata.prompt).toBe('string');
-      expect(scene.assets).toBeDefined();
-      expect(Object.values(scene.assets ?? {}).length).toBe(1);
-    } finally {
-      await rm(assetOutputDir, { recursive: true, force: true });
-    }
   });
 
   it('getSelection and generic exportScene expose the lite API shape', () => {

@@ -8,7 +8,6 @@ import type {
 } from '@dioramai/schema';
 import { SemanticRoleSchema } from '@dioramai/schema';
 import type { Command } from '@dioramai/core';
-import { createGeneratorAdapter, type GeneratedAsset, type GenerationConfig } from '@dioramai/generation';
 import { ingestAsset as planIngestAsset } from '@dioramai/ingestion';
 import {
   type ArrangeLayout,
@@ -98,56 +97,20 @@ export const ExportR3FInputSchema = z
 
 export type ExportR3FInput = z.infer<typeof ExportR3FInputSchema>;
 
-export const GenerateAssetInputSchema = z
+export const IngestAssetInputSchema = z
   .object({
-    prompt: z.string().min(1),
-    provider: z.enum(['meshy', 'tripo', 'luma', 'mock']).optional(),
-    mode: z.enum(['mock', 'live']).optional(),
-  })
-  .strict();
-
-export type GenerateAssetInput = z.infer<typeof GenerateAssetInputSchema>;
-
-const GeneratedAssetSchema: z.ZodType<GeneratedAsset> = z
-  .object({
-    id: z.string().min(1),
-    provider: z.enum(['meshy', 'tripo', 'luma', 'mock']),
-    prompt: z.string().min(1),
+    kind: z.literal('local'),
+    localPath: z.string().min(1),
     format: z.enum(['glb', 'gltf']),
+    id: z.string().min(1).optional(),
     uri: z.string().min(1).optional(),
-    localPath: z.string().min(1).optional(),
     metadata: z.record(z.unknown()).optional(),
+    parentId: z.string().min(1).optional(),
+    nodeId: z.string().min(1).optional(),
+    nodeName: z.string().min(1).optional(),
+    dryRun: z.boolean().optional(),
   })
   .strict();
-
-export const IngestAssetInputSchema = z.discriminatedUnion('kind', [
-  z
-    .object({
-      kind: z.literal('generated'),
-      asset: GeneratedAssetSchema,
-      parentId: z.string().min(1).optional(),
-      nodeId: z.string().min(1).optional(),
-      nodeName: z.string().min(1).optional(),
-      dryRun: z.boolean().optional(),
-    })
-    .strict(),
-  z
-    .object({
-      kind: z.literal('local'),
-      localPath: z.string().min(1),
-      format: z.enum(['glb', 'gltf']),
-      id: z.string().min(1).optional(),
-      uri: z.string().min(1).optional(),
-      prompt: z.string().min(1).optional(),
-      provider: z.enum(['meshy', 'tripo', 'luma', 'mock']).optional(),
-      metadata: z.record(z.unknown()).optional(),
-      parentId: z.string().min(1).optional(),
-      nodeId: z.string().min(1).optional(),
-      nodeName: z.string().min(1).optional(),
-      dryRun: z.boolean().optional(),
-    })
-    .strict(),
-]);
 
 export type IngestAssetInput = z.infer<typeof IngestAssetInputSchema>;
 
@@ -165,9 +128,7 @@ export const McpLiteExportSceneInputSchema = z
 
 export type McpLiteExportSceneInput = z.infer<typeof McpLiteExportSceneInputSchema>;
 
-export interface McpLiteRuntimeOptions {
-  generation?: GenerationConfig;
-}
+export interface McpLiteRuntimeOptions {}
 
 export type AgentRuntimeOptions = McpLiteRuntimeOptions;
 
@@ -181,7 +142,6 @@ export type McpLiteRuntime = {
   applyCommand(input: unknown, options?: unknown): AgentResult<ApplyCommandResult>;
   dryRunCommandBatch(input: unknown): AgentResult<CommandBatchResult>;
   applyCommandBatch(input: unknown, options?: unknown): AgentResult<CommandBatchResult>;
-  generateAsset(input: unknown): Promise<AgentResult<{ asset: GeneratedAsset }>>;
   ingestAsset(input: unknown): AgentResult<IngestAssetResult>;
   structureScene(input?: unknown): AgentResult<ApplyCommandResult>;
   makeInteractive(input?: unknown): AgentResult<ApplyCommandResult>;
@@ -232,7 +192,6 @@ export const createMcpLiteRuntime = (
   options: McpLiteRuntimeOptions = {},
 ): McpLiteRuntime => {
   const runtime = createAgentSession(initialScene);
-  const generator = createGeneratorAdapter(options.generation);
 
   return {
     getScene() {
@@ -289,22 +248,6 @@ export const createMcpLiteRuntime = (
       });
     },
 
-    async generateAsset(input: unknown) {
-      const parsed = GenerateAssetInputSchema.safeParse(input ?? {});
-      if (!parsed.success) {
-        return validationError('Invalid generateAsset payload', parsed.error);
-      }
-      try {
-        const asset = await generator.generateAsset(parsed.data);
-        return ok({ asset });
-      } catch (error) {
-        return err({
-          code: 'COMMAND_REJECTED',
-          message: error instanceof Error ? error.message : 'generateAsset failed',
-        });
-      }
-    },
-
     ingestAsset(input: unknown) {
       const parsed = IngestAssetInputSchema.safeParse(input);
       if (!parsed.success) {
@@ -314,39 +257,21 @@ export const createMcpLiteRuntime = (
       const sceneResult = runtime.getScene();
       if (!sceneResult.ok) return sceneResult;
       const parentId = parsed.data.parentId ?? sceneResult.data.scene.rootId;
-      if (parsed.data.kind === 'generated' && parsed.data.asset.localPath === undefined) {
-        return err({
-          code: 'VALIDATION_ERROR',
-          message: 'Generated asset ingestion requires localPath',
-        });
-      }
 
-      const ingestion = parsed.data.kind === 'generated'
-        ? planIngestAsset({
-          ...parsed.data.asset,
-          localPath: parsed.data.asset.localPath ?? '',
-          source: 'generator',
-        }, {
+      const ingestion = planIngestAsset(
+        {
+          localPath: parsed.data.localPath,
+          format: parsed.data.format,
+          ...(parsed.data.id !== undefined ? { id: parsed.data.id } : {}),
+          ...(parsed.data.uri !== undefined ? { uri: parsed.data.uri } : {}),
+          ...(parsed.data.metadata !== undefined ? { metadata: parsed.data.metadata } : {}),
+        },
+        {
           parentId,
           nodeId: parsed.data.nodeId,
           nodeName: parsed.data.nodeName,
-        })
-        : planIngestAsset(
-          {
-            localPath: parsed.data.localPath,
-            format: parsed.data.format,
-            ...(parsed.data.id !== undefined ? { id: parsed.data.id } : {}),
-            ...(parsed.data.uri !== undefined ? { uri: parsed.data.uri } : {}),
-            ...(parsed.data.prompt !== undefined ? { prompt: parsed.data.prompt } : {}),
-            ...(parsed.data.provider !== undefined ? { provider: parsed.data.provider } : {}),
-            ...(parsed.data.metadata !== undefined ? { metadata: parsed.data.metadata } : {}),
-          },
-          {
-            parentId,
-            nodeId: parsed.data.nodeId,
-            nodeName: parsed.data.nodeName,
-          },
-        );
+        },
+      );
 
       const batch = commandBatchResult(runtime, ingestion.commands, parsed.data.dryRun);
       if (!batch.ok) return batch;

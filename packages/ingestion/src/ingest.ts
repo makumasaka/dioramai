@@ -34,13 +34,7 @@ const providerFromInput = (input: IngestAssetInput): string =>
   input.provider !== undefined ? input.provider : 'manual';
 
 const sourceFromInput = (input: IngestAssetInput): 'manual' | 'upload' | 'generator' =>
-  input.source ??
-  (input.prompt !== undefined ||
-  input.provider === 'meshy' ||
-  input.provider === 'tripo' ||
-  input.provider === 'luma'
-    ? 'generator'
-    : 'manual');
+  input.source ?? 'manual';
 
 const promptFromInput = (input: IngestAssetInput): string | undefined =>
   'prompt' in input && typeof input.prompt === 'string' ? input.prompt : undefined;
