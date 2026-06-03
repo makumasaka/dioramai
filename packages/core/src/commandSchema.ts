@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import type { Command } from '@dioramai/core';
+import type { Command } from './commands';
 import {
   BehaviorDefinitionSchema,
   DioramaiAssetSchema,
@@ -78,13 +78,11 @@ const ArrangeOptionsSchema = z
   .strict();
 
 /**
- * Zod mirror of {@link Command} for validating untrusted agent payloads before
- * they reach the core reducer.
- *
- * Input is intentionally `unknown`-shaped JSON; output is narrowed to {@link Command}.
+ * Zod mirror of {@link Command} for validating untrusted agent/MCP payloads
+ * before they reach the core reducer.
  *
  * Convention: any future core command union change must update this file,
- * docs/COMMANDS.md, core command tests, and agent-interface validation tests.
+ * docs/COMMANDS.md, core command tests, and command schema tests.
  */
 export const CommandSchema = z.discriminatedUnion('type', [
   z

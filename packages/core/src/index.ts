@@ -63,3 +63,13 @@ export {
   livingSpaceScene,
 } from './fixtures';
 export type { StarterKitId } from './fixtures';
+export { CommandSchema, COMMAND_TYPES, COMMAND_SCHEMA_PARITY } from './commandSchema';
+export { ok, err, issuesFromZod } from './result';
+export type {
+  CommandError,
+  CommandErrorCode,
+  CommandIssue,
+  OkResult,
+  ErrResult,
+  Result,
+} from './result';

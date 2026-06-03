@@ -17,7 +17,8 @@
   },
   "dependencies": {
     "@dioramai/schema": "*",
-    "three": "^0.184.0"
+    "three": "^0.184.0",
+    "zod": "^3.25.76"
   },
   "devDependencies": {
     "vitest": "^3.2.4"

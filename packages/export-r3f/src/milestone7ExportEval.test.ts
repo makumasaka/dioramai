@@ -1,12 +1,16 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { createAgentSession } from '@dioramai/agent-interface';
 import {
+  applyCommand,
   getStarterScene,
   type Command,
   type StarterKitId,
 } from '@dioramai/core';
-import { parseSceneJson, serializeScene } from '@dioramai/schema';
+import { parseSceneJson, serializeScene, type Scene } from '@dioramai/schema';
+import {
+  exportSceneToR3fJsx,
+  exportSceneToR3fModule,
+} from './r3f';
 
 type IntentFixture = {
   id: string;
@@ -32,87 +36,67 @@ const fixtures = readdirSync(fixtureDir)
 
 const fixtureCases = fixtures.map((fixture) => [fixture.id, fixture] as const);
 
-const expectOk = <T>(result: { ok: true; data: T } | { ok: false }): T => {
-  expect(result.ok).toBe(true);
-  if (!result.ok) throw new Error('expected ok result');
-  return result.data;
-};
+const applyAll = (initial: Scene, commands: Command[]): Scene =>
+  commands.reduce((s, c) => applyCommand(s, c), initial);
 
 describe('Milestone 7 export eval', () => {
   it.each(fixtureCases)('%s exports deterministic JSON after agent batch apply', (_id, fixture) => {
-    const session = createAgentSession(getStarterScene(fixture.startingSceneId));
-    expectOk(session.applyCommandBatch(fixture.commands));
+    const scene = applyAll(getStarterScene(fixture.startingSceneId), fixture.commands);
 
-    const exported = expectOk(session.exportScene({ format: 'json' }));
-    const parsed = parseSceneJson(exported.content);
+    const content = serializeScene(scene);
+    const parsed = parseSceneJson(content);
 
     expect(parsed).not.toBeNull();
-    expect(serializeScene(parsed!)).toBe(exported.content);
+    expect(serializeScene(parsed!)).toBe(content);
     for (const nodeId of fixture.exportChecks.jsonNodeIds) {
       expect(parsed?.nodes[nodeId], `${fixture.id} missing ${nodeId}`).toBeDefined();
     }
   });
 
   it.each(fixtureCases)('%s exports stable JSON snapshot after agent batch apply', (id, fixture) => {
-    const session = createAgentSession(getStarterScene(fixture.startingSceneId));
-    expectOk(session.applyCommandBatch(fixture.commands));
+    const scene = applyAll(getStarterScene(fixture.startingSceneId), fixture.commands);
 
-    const exported = expectOk(session.exportScene({ format: 'json' }));
-
-    expect(exported.content).toMatchSnapshot(id);
+    expect(serializeScene(scene)).toMatchSnapshot(id);
   });
 
   it.each(fixtureCases)('%s exports deterministic R3F after agent batch apply', (_id, fixture) => {
-    const session = createAgentSession(getStarterScene(fixture.startingSceneId));
-    expectOk(session.applyCommandBatch(fixture.commands));
+    const scene = applyAll(getStarterScene(fixture.startingSceneId), fixture.commands);
 
-    const exported = expectOk(
-      session.exportScene({ format: 'r3f', r3f: { includeStudioLights: true } }),
-    );
+    const content = exportSceneToR3fJsx(scene, { includeStudioLights: true });
 
     for (const needle of fixture.exportChecks.r3fContains) {
-      expect(exported.content).toContain(needle);
+      expect(content).toContain(needle);
     }
-    expect(exported.content).toMatchSnapshot(fixture.id);
+    expect(content).toMatchSnapshot(fixture.id);
   });
 
   it('exports a structured R3F module for an interactive showroom agent flow', () => {
-    const session = createAgentSession(getStarterScene('showroom'));
-    expectOk(
-      session.applyCommandBatch([
-        { type: 'STRUCTURE_SCENE', preset: 'showroom' },
-        { type: 'MAKE_INTERACTIVE', targetRole: 'product' },
-      ]),
-    );
+    const scene = applyAll(getStarterScene('showroom'), [
+      { type: 'STRUCTURE_SCENE', preset: 'showroom' },
+      { type: 'MAKE_INTERACTIVE', targetRole: 'product' },
+    ]);
 
-    const exported = expectOk(
-      session.exportScene({
-        format: 'r3f',
-        r3f: {
-          mode: 'module',
-          componentName: 'InteractiveShowroom',
-          includeStudioLights: true,
-        },
-      }),
-    );
+    const content = exportSceneToR3fModule(scene, {
+      componentName: 'InteractiveShowroom',
+      includeStudioLights: true,
+    }).code;
 
-    expect(exported.content).toContain('export function InteractiveShowroom()');
-    expect(exported.content).toContain('function Product');
-    expect(exported.content).toContain('function DisplaySurface');
-    expect(exported.content).toContain('handleSelect');
-    expect(exported.content).toContain('handleHoverStart');
-    expect(exported.content).not.toContain('command_batch');
-    expect(exported.content).toMatchSnapshot('interactive showroom module');
+    expect(content).toContain('export function InteractiveShowroom()');
+    expect(content).toContain('function Product');
+    expect(content).toContain('function DisplaySurface');
+    expect(content).toContain('handleSelect');
+    expect(content).toContain('handleHoverStart');
+    expect(content).not.toContain('command_batch');
+    expect(content).toMatchSnapshot('interactive showroom module');
   });
 
   describe('hierarchy and local transforms', () => {
     it('emits living-space children in scene-graph order with the moved table local transform', () => {
       const fixture = fixtures.find((f) => f.id === '003-living-transform-export');
       expect(fixture, '003-living-transform-export fixture missing').toBeDefined();
-      const session = createAgentSession(getStarterScene(fixture!.startingSceneId));
-      expectOk(session.applyCommandBatch(fixture!.commands));
+      const scene = applyAll(getStarterScene(fixture!.startingSceneId), fixture!.commands);
 
-      const r3f = expectOk(session.exportScene({ format: 'r3f' })).content;
+      const r3f = exportSceneToR3fJsx(scene, {});
 
       expect(r3f).toContain(
         '<group name="Coffee table" position={[0.95, 0.32, 0.1]} rotation={[0, 0.2, 0]} scale={[1.1, 0.12, 0.65]}>',
@@ -125,10 +109,9 @@ describe('Milestone 7 export eval', () => {
     it('keeps duplicated showroom display after the original in the R3F output', () => {
       const fixture = fixtures.find((f) => f.id === '002-showroom-duplicate-focus');
       expect(fixture, '002-showroom-duplicate-focus fixture missing').toBeDefined();
-      const session = createAgentSession(getStarterScene(fixture!.startingSceneId));
-      expectOk(session.applyCommandBatch(fixture!.commands));
+      const scene = applyAll(getStarterScene(fixture!.startingSceneId), fixture!.commands);
 
-      const r3f = expectOk(session.exportScene({ format: 'r3f' })).content;
+      const r3f = exportSceneToR3fJsx(scene, {});
 
       expect(r3f.indexOf('display_table ')).toBeLessThan(r3f.indexOf('display_table-copy'));
       expect(r3f).toContain(
@@ -139,44 +122,41 @@ describe('Milestone 7 export eval', () => {
 
   describe('hidden, light, and root transform behavior', () => {
     it('omits agent-added hidden subtrees and their descendants from the R3F output', () => {
-      const session = createAgentSession(getStarterScene('default'));
-      expectOk(
-        session.applyCommandBatch([
-          {
-            type: 'ADD_NODE',
-            parentId: 'default-root',
-            node: {
-              id: 'agent-hidden-branch',
-              name: 'Agent Hidden',
-              type: 'group',
-              children: [],
-              transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-              visible: false,
-              metadata: {},
-            },
+      const scene = applyAll(getStarterScene('default'), [
+        {
+          type: 'ADD_NODE',
+          parentId: 'default-root',
+          node: {
+            id: 'agent-hidden-branch',
+            name: 'Agent Hidden',
+            type: 'group',
+            children: [],
+            transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+            visible: false,
+            metadata: {},
           },
-          {
-            type: 'ADD_NODE',
-            parentId: 'agent-hidden-branch',
-            node: {
-              id: 'agent-hidden-leaf',
-              name: 'Agent Hidden Leaf',
-              type: 'mesh',
-              children: [],
-              transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-              visible: true,
-              metadata: {},
-            },
+        },
+        {
+          type: 'ADD_NODE',
+          parentId: 'agent-hidden-branch',
+          node: {
+            id: 'agent-hidden-leaf',
+            name: 'Agent Hidden Leaf',
+            type: 'mesh',
+            children: [],
+            transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+            visible: true,
+            metadata: {},
           },
-        ]),
-      );
+        },
+      ]);
 
-      const r3f = expectOk(session.exportScene({ format: 'r3f' })).content;
+      const r3f = exportSceneToR3fJsx(scene, {});
       expect(r3f).not.toContain('Agent Hidden');
       expect(r3f).not.toContain('agent-hidden-branch');
       expect(r3f).not.toContain('agent-hidden-leaf');
 
-      const json = expectOk(session.exportScene({ format: 'json' })).content;
+      const json = serializeScene(scene);
       const parsed = parseSceneJson(json);
       expect(parsed?.nodes['agent-hidden-branch']?.visible).toBe(false);
       expect(parsed?.nodes['agent-hidden-leaf']?.visible).toBe(true);
@@ -185,50 +165,45 @@ describe('Milestone 7 export eval', () => {
     });
 
     it('emits ambient and directional primitives for agent-added light nodes', () => {
-      const session = createAgentSession(getStarterScene('default'));
-      expectOk(
-        session.applyCommandBatch([
-          {
-            type: 'ADD_NODE',
-            parentId: 'default-root',
-            node: {
-              id: 'agent-ambient',
-              name: 'Agent Ambient',
-              type: 'light',
-              children: [],
-              transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
-              visible: true,
-              metadata: {},
-              light: { kind: 'ambient', intensity: 0.42 },
-            },
+      const scene = applyAll(getStarterScene('default'), [
+        {
+          type: 'ADD_NODE',
+          parentId: 'default-root',
+          node: {
+            id: 'agent-ambient',
+            name: 'Agent Ambient',
+            type: 'light',
+            children: [],
+            transform: { position: [0, 0, 0], rotation: [0, 0, 0], scale: [1, 1, 1] },
+            visible: true,
+            metadata: {},
+            light: { kind: 'ambient', intensity: 0.42 },
           },
-          {
-            type: 'ADD_NODE',
-            parentId: 'default-root',
-            node: {
-              id: 'agent-directional',
-              name: 'Agent Sun',
-              type: 'light',
-              children: [],
-              transform: { position: [4, 8, 5], rotation: [0, 0, 0], scale: [1, 1, 1] },
-              visible: true,
-              metadata: {},
-              light: { kind: 'directional', intensity: 1.2, castShadow: true },
-            },
+        },
+        {
+          type: 'ADD_NODE',
+          parentId: 'default-root',
+          node: {
+            id: 'agent-directional',
+            name: 'Agent Sun',
+            type: 'light',
+            children: [],
+            transform: { position: [4, 8, 5], rotation: [0, 0, 0], scale: [1, 1, 1] },
+            visible: true,
+            metadata: {},
+            light: { kind: 'directional', intensity: 1.2, castShadow: true },
           },
-        ]),
-      );
+        },
+      ]);
 
-      const r3f = expectOk(session.exportScene({ format: 'r3f' })).content;
+      const r3f = exportSceneToR3fJsx(scene, {});
       expect(r3f).toContain('<ambientLight intensity={0.42} />');
       expect(r3f).toContain('<directionalLight intensity={1.2} castShadow />');
       expect(r3f).toContain(
         '<group name="Agent Sun" position={[4, 8, 5]} rotation={[0, 0, 0]} scale={[1, 1, 1]}>',
       );
 
-      const parsedScene = parseSceneJson(
-        expectOk(session.exportScene({ format: 'json' })).content,
-      );
+      const parsedScene = parseSceneJson(serializeScene(scene));
       expect(parsedScene?.nodes['agent-ambient']?.light).toEqual({
         kind: 'ambient',
         intensity: 0.42,
@@ -243,9 +218,8 @@ describe('Milestone 7 export eval', () => {
     });
 
     it('reflects an agent-driven UPDATE_TRANSFORM on the root in the root R3F group', () => {
-      const session = createAgentSession(getStarterScene('default'));
-      expectOk(
-        session.applyCommand({
+      const scene = applyAll(getStarterScene('default'), [
+        {
           type: 'UPDATE_TRANSFORM',
           nodeId: 'default-root',
           patch: {
@@ -253,17 +227,16 @@ describe('Milestone 7 export eval', () => {
             rotation: [0, 0.5, 0],
             scale: [1.5, 1.5, 1.5],
           },
-        }),
-      );
+        },
+      ]);
 
-      const r3f = expectOk(session.exportScene({ format: 'r3f' })).content;
+      const r3f = exportSceneToR3fJsx(scene, {});
       expect(r3f).toContain(
         '<group name="Root" position={[10, 0, 0]} rotation={[0, 0.5, 0]} scale={[1.5, 1.5, 1.5]}>',
       );
       expect(r3f.indexOf('default-root')).toBeLessThan(r3f.indexOf('default-cube-1'));
 
-      const json = expectOk(session.exportScene({ format: 'json' })).content;
-      const parsedRoot = parseSceneJson(json)?.nodes['default-root'];
+      const parsedRoot = parseSceneJson(serializeScene(scene))?.nodes['default-root'];
       expect(parsedRoot?.transform.position).toEqual([10, 0, 0]);
       expect(parsedRoot?.transform.rotation).toEqual([0, 0.5, 0]);
       expect(parsedRoot?.transform.scale).toEqual([1.5, 1.5, 1.5]);
@@ -272,34 +245,26 @@ describe('Milestone 7 export eval', () => {
     });
   });
 
-  describe('export exclusions after agent batch apply', () => {
-    /**
-     * An agent session that has applied commands accumulates an action log,
-     * holds the last selection, and exposes structured batch results. Neither
-     * format must leak that runtime envelope into exported artifacts.
-     */
-    const buildSession = () => {
-      const session = createAgentSession(getStarterScene('living'));
-      expectOk(
-        session.applyCommandBatch([
-          {
-            type: 'UPDATE_TRANSFORM',
-            nodeId: 'living-table',
-            patch: { position: [0.95, 0.32, 0.1], rotation: [0, 0.2, 0] },
-          },
-          { type: 'SET_SELECTION', nodeId: 'living-table' },
-        ]),
-      );
-      const log = expectOk(session.getCommandLog()).entries;
-      expect(log.length, 'agent action log must be non-empty for the leak check').toBeGreaterThan(0);
-      return session;
+  describe('export exclusions after command apply', () => {
+    const buildScene = () => {
+      const scene = applyAll(getStarterScene('living'), [
+        {
+          type: 'UPDATE_TRANSFORM',
+          nodeId: 'living-table',
+          patch: { position: [0.95, 0.32, 0.1], rotation: [0, 0.2, 0] },
+        },
+        { type: 'SET_SELECTION', nodeId: 'living-table' },
+      ]);
+      expect(
+        scene.nodes['living-table']?.transform.position,
+        'commands must have been applied for the leak check',
+      ).toEqual([0.95, 0.32, 0.1]);
+      return scene;
     };
 
     it('R3F export excludes editor state, command log, action log, and filesystem paths', () => {
-      const session = buildSession();
-      const r3f = expectOk(
-        session.exportScene({ format: 'r3f', r3f: { includeStudioLights: true } }),
-      ).content;
+      const scene = buildScene();
+      const r3f = exportSceneToR3fJsx(scene, { includeStudioLights: true });
 
       const forbidden = [
         '"selection"',
@@ -310,7 +275,7 @@ describe('Milestone 7 export eval', () => {
         'command_batch',
         'UPDATE_TRANSFORM',
         'SET_SELECTION',
-        'living-table"', // any quoted node-id leak from action log JSON
+        'living-table"',
         '/Users/',
         'file:///',
         'dryRun',
@@ -323,8 +288,8 @@ describe('Milestone 7 export eval', () => {
     });
 
     it('JSON export excludes command log entries, action log fields, and filesystem paths', () => {
-      const session = buildSession();
-      const json = expectOk(session.exportScene({ format: 'json' })).content;
+      const scene = buildScene();
+      const json = serializeScene(scene);
 
       const forbidden = [
         '"sequence"',
