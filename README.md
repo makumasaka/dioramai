@@ -2,9 +2,8 @@
 
 Dioramai is a visual runtime orchestration layer for AI-native React Three Fiber applications.
 
-It is repo-first, runtime-first, and code-first. Dioramai runs inside or
-alongside an existing developer project, keeps a validated canonical scene graph
-as source of truth, projects that scene into an R3F viewport, and synchronizes
+It is runtime-first and code-first. Dioramai runs inside or
+alongside an existing developer project, keeps a validated canonical scene graph as source of truth, projects that scene into an R3F viewport, and synchronizes
 deterministic visual edits back into generated R3F code.
 
 The closest product analogy is Paper.design for interactive 3D web apps: a live
