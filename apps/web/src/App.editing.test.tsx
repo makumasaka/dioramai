@@ -9,6 +9,16 @@ vi.mock('./viewport/Viewport', () => ({
   Viewport: () => <div data-testid="viewport-stub" />,
 }));
 
+const expandTimeline = async (user: ReturnType<typeof userEvent.setup>) => {
+  const toggleBtn = screen.getByTitle('Expand command timeline');
+  await user.click(toggleBtn);
+};
+
+const expandSceneLoader = async (user: ReturnType<typeof userEvent.setup>) => {
+  const toggleBtn = screen.getByTitle('Expand scene tools');
+  await user.click(toggleBtn);
+};
+
 const treeCubeButton = (): HTMLElement => {
   const btn = screen
     .getAllByRole('button')
@@ -71,6 +81,7 @@ describe('App — core editing flows (component)', () => {
     await user.type(spinbuttons[1]!, '3.5');
     await user.tab();
 
+    await expandTimeline(user);
     const commandLog = screen.getByRole('region', { name: /command timeline/i });
     await waitFor(() => {
       expect(within(commandLog).getAllByText('UPDATE_TRANSFORM').length).toBeGreaterThan(0);
@@ -116,6 +127,7 @@ describe('App — core editing flows (component)', () => {
 
     const root = useSceneStore.getState().scene.rootId;
     await user.click(treeCubeButton());
+    await expandTimeline(user);
     const commandLog = screen.getByRole('region', { name: /command timeline/i });
     expect(within(commandLog).getByText('No commands yet.')).toBeInTheDocument();
 
@@ -142,13 +154,14 @@ describe('App — core editing flows (component)', () => {
     await user.type(spinbuttons[0]!, '3');
     await user.tab();
 
+    await expandTimeline(user);
     const timeline = screen.getByRole('region', { name: /command timeline/i });
     const positionX = within(timeline).getByRole('spinbutton', { name: /position x/i });
     await user.clear(positionX);
     await user.type(positionX, '6');
 
     const recompute = within(timeline).getByRole('button', {
-      name: /recompute from timeline/i,
+      name: /recompute/i,
     });
     expect(recompute).not.toBeDisabled();
     await user.click(recompute);
@@ -205,6 +218,7 @@ describe('App — core editing flows (component)', () => {
     await user.type(spinbuttons[0]!, '1.75');
     await user.tab();
 
+    await expandSceneLoader(user);
     await user.click(screen.getByRole('button', { name: 'JSON' }));
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     const blob = createObjectURL.mock.calls[0]?.[0] as Blob;

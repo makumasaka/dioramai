@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { summarizeCommand, type Command, type Scene } from '@dioramai/core';
 import { useSceneStore } from '../store/sceneStore';
 
@@ -205,6 +206,7 @@ function EditableFields({
 }
 
 export function CommandTimeline() {
+  const [expanded, setExpanded] = useState(false);
   const scene = useSceneStore((s) => s.scene);
   const commandLog = useSceneStore((s) => s.commandLog);
   const timelineCommands = useSceneStore((s) => s.timelineCommands);
@@ -218,58 +220,77 @@ export function CommandTimeline() {
     return commandKey(command) !== commandKey(original ?? command) ? count + 1 : count;
   }, 0);
 
+  const count = timelineCommands.length;
+
   return (
-    <section className="command-timeline" aria-label="Command timeline">
+    <section
+      className={`command-timeline${expanded ? ' command-timeline--expanded' : ''}`}
+      aria-label="Command timeline"
+    >
       <header className="command-timeline__header">
-        <div>
-          <div className="command-timeline__title">Command Timeline</div>
-          <div className="command-timeline__subtitle">
-            Edit steps below, then recompute to rebuild the scene from the command sequence.
-          </div>
-        </div>
         <button
           type="button"
-          className="command-timeline__recompute"
-          onClick={() => {
-            const ok = recomputeFromTimeline();
-            if (ok) clearTimelineError();
-          }}
-          disabled={editedCount === 0}
+          className="command-timeline__toggle"
+          onClick={() => setExpanded((v) => !v)}
+          aria-expanded={expanded}
+          title={expanded ? 'Collapse command timeline' : 'Expand command timeline'}
         >
-          Recompute from timeline
+          <span className="command-timeline__toggle-arrow">{expanded ? '▼' : '▶'}</span>
+          <span className="command-timeline__title">Commands</span>
+          <span className="command-timeline__count">
+            {count === 0 ? 'none' : `${count} step${count === 1 ? '' : 's'}`}
+            {editedCount > 0 ? ` · ${editedCount} edited` : ''}
+          </span>
         </button>
+        {editedCount > 0 ? (
+          <button
+            type="button"
+            className="command-timeline__recompute"
+            onClick={() => {
+              const ok = recomputeFromTimeline();
+              if (ok) clearTimelineError();
+            }}
+          >
+            Recompute
+          </button>
+        ) : null}
       </header>
-      {timelineError ? <div className="command-timeline__error">{timelineError}</div> : null}
-      <div className="command-timeline__body">
-        {timelineCommands.length === 0 ? (
-          <div className="command-timeline__empty">No commands yet.</div>
-        ) : (
-          timelineCommands.map((command, index) => {
-            const original = commandLog[index]?.command;
-            const edited = commandKey(command) !== commandKey(original ?? command);
-            const summary = summarizeCommand(command);
-            const touched = commandTouchedNodes(scene, command);
-            return (
-              <article key={`${index}-${command.type}`} className="timeline-card">
-                <div className="timeline-card__top">
-                  <span className="timeline-card__step">#{index + 1}</span>
-                  <span className="timeline-card__type">{command.type}</span>
-                  {edited ? <span className="timeline-card__badge">edited</span> : null}
-                </div>
-                <div className="timeline-card__summary">{summary.title}</div>
-                <div className="timeline-card__detail">{summary.detail}</div>
-                <div className="timeline-card__nodes">
-                  {touched.length > 0 ? `Nodes: ${touched.join(' | ')}` : 'Nodes: -'}
-                </div>
-                <EditableFields
-                  command={command}
-                  onChange={(nextCommand) => setTimelineCommandAt(index, nextCommand)}
-                />
-              </article>
-            );
-          })
-        )}
-      </div>
+
+      {expanded ? (
+        <>
+          {timelineError ? <div className="command-timeline__error">{timelineError}</div> : null}
+          <div className="command-timeline__body">
+            {timelineCommands.length === 0 ? (
+              <div className="command-timeline__empty">No commands yet.</div>
+            ) : (
+              timelineCommands.map((command, index) => {
+                const original = commandLog[index]?.command;
+                const edited = commandKey(command) !== commandKey(original ?? command);
+                const summary = summarizeCommand(command);
+                const touched = commandTouchedNodes(scene, command);
+                return (
+                  <article key={`${index}-${command.type}`} className="timeline-card">
+                    <div className="timeline-card__top">
+                      <span className="timeline-card__step">#{index + 1}</span>
+                      <span className="timeline-card__type">{command.type}</span>
+                      {edited ? <span className="timeline-card__badge">edited</span> : null}
+                    </div>
+                    <div className="timeline-card__summary">{summary.title}</div>
+                    <div className="timeline-card__detail">{summary.detail}</div>
+                    <div className="timeline-card__nodes">
+                      {touched.length > 0 ? `Nodes: ${touched.join(' | ')}` : 'Nodes: -'}
+                    </div>
+                    <EditableFields
+                      command={command}
+                      onChange={(nextCommand) => setTimelineCommandAt(index, nextCommand)}
+                    />
+                  </article>
+                );
+              })
+            )}
+          </div>
+        </>
+      ) : null}
     </section>
   );
 }

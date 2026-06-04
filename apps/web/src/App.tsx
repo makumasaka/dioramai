@@ -23,8 +23,9 @@ interface PanelSizes {
   inspectorW: number;
 }
 
-const INITIAL_SIZES: PanelSizes = { codePaneH: 220, timelineH: 160, treeW: 260, inspectorW: 300 };
-const LIMITS = { codePaneH: [60, 700], timelineH: [40, 500], treeW: [120, 600], inspectorW: [160, 700] } as const;
+const TIMELINE_COLLAPSED_H = 32;
+const INITIAL_SIZES: PanelSizes = { codePaneH: 220, timelineH: TIMELINE_COLLAPSED_H, treeW: 260, inspectorW: 300 };
+const LIMITS = { codePaneH: [60, 700], timelineH: [TIMELINE_COLLAPSED_H, 500], treeW: [120, 600], inspectorW: [160, 700] } as const;
 
 function useDragResize() {
   const [sizes, setSizes] = useState<PanelSizes>(INITIAL_SIZES);

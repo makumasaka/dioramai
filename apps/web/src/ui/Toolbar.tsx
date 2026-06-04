@@ -1,8 +1,10 @@
+import { useState } from 'react';
 import { useSceneStore } from '../store/sceneStore';
 import { getParent } from '@dioramai/core';
 import { SceneLoader } from './SceneLoader';
 
 export function Toolbar() {
+  const [sceneOpen, setSceneOpen] = useState(false);
   const scene = useSceneStore((s) => s.scene);
   const selectedId = scene.selection;
   const dispatch = useSceneStore((s) => s.dispatch);
@@ -135,7 +137,7 @@ export function Toolbar() {
       </div>
 
       <div className="toolbar__secondary">
-        <SceneLoader />
+        <SceneLoader open={sceneOpen} onToggle={() => setSceneOpen((v) => !v)} />
       </div>
     </header>
   );

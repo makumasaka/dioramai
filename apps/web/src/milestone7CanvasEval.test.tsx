@@ -128,6 +128,7 @@ describe('Milestone 7 Loop C canvas editing eval', () => {
     await user.type(spinbuttons[0]!, '2.5');
     await user.tab();
 
+    await user.click(screen.getByTitle('Expand command timeline'));
     const commandLog = screen.getByRole('region', { name: /command timeline/i });
     await waitFor(() => {
       expect(within(commandLog).getAllByText('UPDATE_TRANSFORM').length).toBeGreaterThan(0);
@@ -154,6 +155,7 @@ describe('Milestone 7 Loop C canvas editing eval', () => {
       '2.5,0.5,0',
     );
 
+    await user.click(screen.getByTitle('Expand scene tools'));
     await user.click(screen.getByRole('button', { name: 'JSON' }));
     const blob = createObjectURL.mock.calls[0]?.[0] as Blob;
     const parsed = parseSceneJson(await blob.text());

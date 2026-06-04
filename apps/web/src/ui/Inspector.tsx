@@ -1,5 +1,5 @@
 import { useSceneStore } from '../store/sceneStore';
-import { getParent, type TransformPatch, type Vec3 } from '@dioramai/core';
+import { getParent, createId, type TransformPatch, type Vec3, type SemanticRole, type BehaviorDefinition } from '@dioramai/core';
 
 const RAD_TO_DEG = 180 / Math.PI;
 const DEG_TO_RAD = Math.PI / 180;
@@ -59,6 +59,88 @@ function Vec3Editor({ label, value, step = 0.1, onChange }: Vec3EditorProps) {
 
 const round = (n: number): number => Math.round(n * 1000) / 1000;
 
+const SEMANTIC_ROLES: SemanticRole[] = [
+  'product', 'display', 'seating', 'lighting', 'light',
+  'environment', 'navigation', 'decor', 'container', 'unknown',
+];
+
+interface BehaviorControlsProps {
+  nodeId: string;
+  behaviorDefs: BehaviorDefinition[];
+  legacyHover: boolean;
+  legacyClick: boolean;
+}
+
+function BehaviorControls({ nodeId, behaviorDefs, legacyHover, legacyClick }: BehaviorControlsProps) {
+  const dispatch = useSceneStore((s) => s.dispatch);
+
+  const hoverDef = behaviorDefs.find((b) => b.type === 'hover_highlight');
+  const clickDef = behaviorDefs.find((b) => b.type === 'click_select');
+
+  const hasHover = Boolean(hoverDef) || legacyHover;
+  const hasClick = Boolean(clickDef) || legacyClick;
+
+  const addBehavior = (type: BehaviorDefinition['type']) => {
+    const behavior: BehaviorDefinition = {
+      id: `${nodeId}-${type}-${createId()}`,
+      type,
+      nodeIds: [nodeId],
+    };
+    dispatch({ type: 'ADD_BEHAVIOR', behavior });
+  };
+
+  const removeBehavior = (def: BehaviorDefinition | undefined) => {
+    if (def) {
+      dispatch({ type: 'REMOVE_BEHAVIOR', behaviorId: def.id });
+    }
+  };
+
+  return (
+    <div className="behavior-controls">
+      <div className="behavior-controls__row">
+        <span className="behavior-controls__label">Hover highlight</span>
+        {hasHover ? (
+          <button
+            type="button"
+            className="behavior-controls__btn behavior-controls__btn--remove"
+            onClick={() => removeBehavior(hoverDef)}
+          >
+            Remove
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="behavior-controls__btn behavior-controls__btn--add"
+            onClick={() => addBehavior('hover_highlight')}
+          >
+            Add
+          </button>
+        )}
+      </div>
+      <div className="behavior-controls__row">
+        <span className="behavior-controls__label">Click select</span>
+        {hasClick ? (
+          <button
+            type="button"
+            className="behavior-controls__btn behavior-controls__btn--remove"
+            onClick={() => removeBehavior(clickDef)}
+          >
+            Remove
+          </button>
+        ) : (
+          <button
+            type="button"
+            className="behavior-controls__btn behavior-controls__btn--add"
+            onClick={() => addBehavior('click_select')}
+          >
+            Add
+          </button>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export function Inspector() {
   const scene = useSceneStore((s) => s.scene);
   const dispatch = useSceneStore((s) => s.dispatch);
@@ -104,18 +186,36 @@ export function Inspector() {
       ? infoBehavior.params.description
       : node.behaviors?.info?.description;
 
+  const currentRole: SemanticRole = semantics?.role ?? node.semanticRole ?? 'unknown';
+
+  const setRole = (role: SemanticRole) => {
+    dispatch({
+      type: 'SET_NODE_SEMANTICS',
+      nodeIds: [selectedId],
+      semantics: { role },
+    });
+  };
+
   return (
     <aside className="inspector">
       <div className="inspector__header">Inspector</div>
 
       <section className="inspector__section">
         <div className="inspector__section-title">Semantics & behaviors</div>
-        <div className="inspector__row">
+
+        <div className="inspector__row inspector__row--role">
           <span className="inspector__key">Role</span>
-          <span className="inspector__value">
-            {semantics?.role ?? node.semanticRole ?? 'unknown'}
-          </span>
+          <select
+            className="inspector__role-select"
+            value={currentRole}
+            onChange={(e) => setRole(e.target.value as SemanticRole)}
+          >
+            {SEMANTIC_ROLES.map((r) => (
+              <option key={r} value={r}>{r}</option>
+            ))}
+          </select>
         </div>
+
         <div className="inspector__row">
           <span className="inspector__key">Group</span>
           <span className="inspector__value inspector__value--mono">
@@ -133,33 +233,23 @@ export function Inspector() {
         {semantics?.description ? (
           <p className="inspector__description">{semantics.description}</p>
         ) : null}
-        <div className="inspector__row">
-          <span className="inspector__key">Hover</span>
-          <span className="inspector__value">
-            {node.behaviors?.hoverHighlight ||
-            behaviorDefinitions.some((b) => b.type === 'hover_highlight')
-              ? 'Highlight'
-              : '-'}
-          </span>
-        </div>
-        <div className="inspector__row">
-          <span className="inspector__key">Click</span>
-          <span className="inspector__value">
-            {node.behaviors?.clickSelect || behaviorDefinitions.some((b) => b.type === 'click_select')
-              ? node.behaviors?.focusOnClick
-                ? 'Select + focus'
-                : 'Select'
-              : '-'}
-          </span>
-        </div>
-        <div className="inspector__row inspector__row--wrap">
-          <span className="inspector__key">Behaviors</span>
-          <span className="inspector__value inspector__value--mono inspector__value--multiline">
-            {behaviorDefinitions.length > 0
-              ? behaviorDefinitions.map((behavior) => behavior.type).join(', ')
-              : '-'}
-          </span>
-        </div>
+
+        <BehaviorControls
+          nodeId={selectedId}
+          behaviorDefs={behaviorDefinitions}
+          legacyHover={Boolean(node.behaviors?.hoverHighlight)}
+          legacyClick={Boolean(node.behaviors?.clickSelect)}
+        />
+
+        {behaviorDefinitions.length > 0 ? (
+          <div className="inspector__row inspector__row--wrap">
+            <span className="inspector__key">Active</span>
+            <span className="inspector__value inspector__value--mono inspector__value--multiline">
+              {behaviorDefinitions.map((b) => b.type).join(', ')}
+            </span>
+          </div>
+        ) : null}
+
         {infoTitle ? (
           <>
             <div className="inspector__row">
