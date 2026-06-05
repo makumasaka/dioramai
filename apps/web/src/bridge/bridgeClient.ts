@@ -1,4 +1,4 @@
-import type { Command, Scene, type NodeSemantics, type BehaviorDefinition } from '@dioramai/core';
+import type { Command, Scene, NodeSemantics, BehaviorDefinition } from '@dioramai/core';
 
 export type BridgeSceneEvent = {
   type: 'scene';
