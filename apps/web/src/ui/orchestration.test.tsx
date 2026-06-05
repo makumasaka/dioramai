@@ -243,4 +243,101 @@ describe('Inspector — behavior controls', () => {
       expect(lastCmd.nodeIds).toContain('default-cube-1');
     }
   });
+
+  it('tags input dispatches SET_NODE_SEMANTICS with parsed tags on blur', async () => {
+    render(<Inspector />);
+
+    const tagsInput = screen.getByPlaceholderText(/tag1, tag2/i);
+    await user.clear(tagsInput);
+    await user.type(tagsInput, 'hero, outdoor, featured');
+    await user.tab();
+
+    const log = useSceneStore.getState().commandLog;
+    const lastCmd = log.at(-1)?.command;
+    expect(lastCmd?.type).toBe('SET_NODE_SEMANTICS');
+    if (lastCmd?.type === 'SET_NODE_SEMANTICS') {
+      expect(lastCmd.semantics.tags).toEqual(['hero', 'outdoor', 'featured']);
+      expect(lastCmd.nodeIds).toContain('default-cube-1');
+    }
+  });
+
+  it('label input dispatches SET_NODE_SEMANTICS with label on blur', async () => {
+    render(<Inspector />);
+
+    const labelInput = screen.getByPlaceholderText(/optional label/i);
+    await user.clear(labelInput);
+    await user.type(labelInput, 'Oak Chair');
+    await user.tab();
+
+    const log = useSceneStore.getState().commandLog;
+    const lastCmd = log.at(-1)?.command;
+    expect(lastCmd?.type).toBe('SET_NODE_SEMANTICS');
+    if (lastCmd?.type === 'SET_NODE_SEMANTICS') {
+      expect(lastCmd.semantics.label).toBe('Oak Chair');
+    }
+  });
+
+  it('description textarea dispatches SET_NODE_SEMANTICS with description on blur', async () => {
+    render(<Inspector />);
+
+    const descInput = screen.getByPlaceholderText(/optional description/i);
+    await user.clear(descInput);
+    await user.type(descInput, 'Handcrafted piece');
+    await user.tab();
+
+    const log = useSceneStore.getState().commandLog;
+    const lastCmd = log.at(-1)?.command;
+    expect(lastCmd?.type).toBe('SET_NODE_SEMANTICS');
+    if (lastCmd?.type === 'SET_NODE_SEMANTICS') {
+      expect(lastCmd.semantics.description).toBe('Handcrafted piece');
+    }
+  });
+
+  it('show_info params editor dispatches ADD_BEHAVIOR with title param on blur', async () => {
+    await act(() => {
+      useSceneStore.getState().dispatch({
+        type: 'ADD_BEHAVIOR',
+        behavior: { id: 'beh-info-ui', type: 'show_info', nodeIds: ['default-cube-1'] },
+      });
+    });
+
+    render(<Inspector />);
+
+    const titleInput = screen.getByPlaceholderText(/product name/i);
+    await user.clear(titleInput);
+    await user.type(titleInput, 'Oak Chair');
+    await user.tab();
+
+    const log = useSceneStore.getState().commandLog;
+    const lastCmd = log.at(-1)?.command;
+    expect(lastCmd?.type).toBe('ADD_BEHAVIOR');
+    if (lastCmd?.type === 'ADD_BEHAVIOR') {
+      expect(lastCmd.behavior.id).toBe('beh-info-ui');
+      expect(lastCmd.behavior.params?.title).toBe('Oak Chair');
+    }
+  });
+
+  it('open_url params editor dispatches ADD_BEHAVIOR with url param on blur', async () => {
+    await act(() => {
+      useSceneStore.getState().dispatch({
+        type: 'ADD_BEHAVIOR',
+        behavior: { id: 'beh-url-ui', type: 'open_url', nodeIds: ['default-cube-1'] },
+      });
+    });
+
+    render(<Inspector />);
+
+    const urlInput = screen.getByPlaceholderText(/https:\/\//i);
+    await user.clear(urlInput);
+    await user.type(urlInput, 'https://example.com');
+    await user.tab();
+
+    const log = useSceneStore.getState().commandLog;
+    const lastCmd = log.at(-1)?.command;
+    expect(lastCmd?.type).toBe('ADD_BEHAVIOR');
+    if (lastCmd?.type === 'ADD_BEHAVIOR') {
+      expect(lastCmd.behavior.id).toBe('beh-url-ui');
+      expect(lastCmd.behavior.params?.url).toBe('https://example.com');
+    }
+  });
 });

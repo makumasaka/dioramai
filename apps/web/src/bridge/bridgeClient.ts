@@ -1,4 +1,4 @@
-import type { Command, Scene } from '@dioramai/core';
+import type { Command, Scene, type NodeSemantics, type BehaviorDefinition } from '@dioramai/core';
 
 export type BridgeSceneEvent = {
   type: 'scene';
@@ -163,6 +163,28 @@ export const postBridgeUpdateTransform = async (
   postJson('/update-transform', {
     nodeId: command.nodeId,
     patch: command.patch,
+  });
+
+export const postBridgeSetNodeSemantics = async (
+  command: Extract<Command, { type: 'SET_NODE_SEMANTICS' }>,
+): Promise<BridgeResult<{ scene: Scene; changed: boolean }>> =>
+  postJson('/tools/set_node_semantics', {
+    nodeIds: command.nodeIds,
+    semantics: command.semantics,
+  });
+
+export const postBridgeAddBehavior = async (
+  command: Extract<Command, { type: 'ADD_BEHAVIOR' }>,
+): Promise<BridgeResult<{ scene: Scene; changed: boolean }>> =>
+  postJson('/tools/add_behavior', {
+    behavior: command.behavior,
+  });
+
+export const postBridgeRemoveBehavior = async (
+  command: Extract<Command, { type: 'REMOVE_BEHAVIOR' }>,
+): Promise<BridgeResult<{ scene: Scene; changed: boolean }>> =>
+  postJson('/tools/remove_behavior', {
+    behaviorId: command.behaviorId,
   });
 
 export const postBridgeLoadScene = async (

@@ -20,7 +20,7 @@ function TreeRow({ scene, nodeId, depth, selectedId, onSelect }: TreeRowProps) {
   const isRoot = nodeId === scene.rootId;
   const role = node.semantics?.role ?? node.semanticRole;
   const groupId = node.semantics?.groupId ?? node.semanticGroupId;
-  const semantic = role
+  const nodeMeta = role
     ? `${role}${groupId ? ` @ ${groupId}` : ''}`
     : `${node.type}${node.visible ? '' : ' hidden'} - ${node.children.length} child${node.children.length === 1 ? '' : 'ren'}`;
 
@@ -34,7 +34,7 @@ function TreeRow({ scene, nodeId, depth, selectedId, onSelect }: TreeRowProps) {
       >
         <span className="tree-row__name">{node.name}</span>
         <span className="tree-row__meta">
-          {isRoot ? 'root' : semantic}
+          {isRoot ? 'root' : nodeMeta}
         </span>
       </button>
       {node.children.map((childId) => (
@@ -122,7 +122,7 @@ function RuntimeView({ scene, selectedId, onSelect }: RuntimeViewProps) {
       <div className="runtime-view__empty">
         <p>No interactive nodes yet.</p>
         <p className="runtime-view__hint">
-          Use the Inspector to assign roles and behaviors to scene nodes.
+          Select a node in the Outline and add a Role or Behavior in the Inspector.
         </p>
       </div>
     );
@@ -172,7 +172,7 @@ function RuntimeView({ scene, selectedId, onSelect }: RuntimeViewProps) {
       {globalBehaviorCounts.size > 0 ? (
         <div className="runtime-section">
           <div className="runtime-section__label">
-            Scene behaviors ({[...globalBehaviorCounts.values()].reduce((a, b) => a + b, 0)} active)
+            Active behaviors ({[...globalBehaviorCounts.values()].reduce((a, b) => a + b, 0)})
           </div>
           {[...globalBehaviorCounts.entries()].map(([type, count]) => (
             <div key={type} className="runtime-behavior-row">
@@ -220,11 +220,11 @@ export function TreeView() {
           <>
             {scene.semanticGroups && Object.keys(scene.semanticGroups).length > 0 ? (
               <div className="semantic-groups">
-                <div className="semantic-groups__label">Semantic Groups</div>
+                <div className="semantic-groups__label">Node groups</div>
                 {Object.values(scene.semanticGroups).map((group) => (
                   <div key={group.id} className="semantic-groups__row">
                     <span>{group.name}</span>
-                    <span>{group.role} - {group.nodeIds.length}</span>
+                    <span>{group.role} · {group.nodeIds.length}</span>
                   </div>
                 ))}
               </div>

@@ -8,7 +8,14 @@ import {
   type Command,
   type Scene,
 } from '@dioramai/core';
-import { clearBridgeStorage, postBridgeLoadScene, postBridgeUpdateTransform } from '../bridge/bridgeClient';
+import {
+  clearBridgeStorage,
+  postBridgeAddBehavior,
+  postBridgeLoadScene,
+  postBridgeRemoveBehavior,
+  postBridgeSetNodeSemantics,
+  postBridgeUpdateTransform,
+} from '../bridge/bridgeClient';
 
 const HISTORY_LIMIT = 100;
 const LOG_LIMIT = 200;
@@ -136,6 +143,45 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
       }
       if (command.type === 'REPLACE_SCENE') {
         void postBridgeLoadScene(serializeScene(command.scene))
+          .then((result) => {
+            if (result.ok) return;
+            get().setBridgeStatus(false, result.error.message);
+            get().dispatch(command);
+          })
+          .catch((error) => {
+            get().setBridgeStatus(false, error instanceof Error ? error.message : String(error));
+            get().dispatch(command);
+          });
+        return;
+      }
+      if (command.type === 'SET_NODE_SEMANTICS') {
+        void postBridgeSetNodeSemantics(command)
+          .then((result) => {
+            if (result.ok) return;
+            get().setBridgeStatus(false, result.error.message);
+            get().dispatch(command);
+          })
+          .catch((error) => {
+            get().setBridgeStatus(false, error instanceof Error ? error.message : String(error));
+            get().dispatch(command);
+          });
+        return;
+      }
+      if (command.type === 'ADD_BEHAVIOR') {
+        void postBridgeAddBehavior(command)
+          .then((result) => {
+            if (result.ok) return;
+            get().setBridgeStatus(false, result.error.message);
+            get().dispatch(command);
+          })
+          .catch((error) => {
+            get().setBridgeStatus(false, error instanceof Error ? error.message : String(error));
+            get().dispatch(command);
+          });
+        return;
+      }
+      if (command.type === 'REMOVE_BEHAVIOR') {
+        void postBridgeRemoveBehavior(command)
           .then((result) => {
             if (result.ok) return;
             get().setBridgeStatus(false, result.error.message);

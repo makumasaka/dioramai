@@ -843,13 +843,26 @@ alwaysApply: true
 
 The local bridge file-watcher reads ONLY this block. Code outside it — imports, JSX component code, \`useFrame\` hooks — is invisible to dioramai.design. Changes written there will show in \`npm run dev\` but will never appear in the dioramai.design shell.
 
-## Adding a GLB model — prefer MCP when the bridge is running
+## MCP tools (when bridge is running)
 
+Register a GLB asset:
 \`\`\`
 import_glb_asset({ "workspaceRelativePath": "public/assets/models/your-model.glb" })
 \`\`\`
 
-This copies the file to the asset directory, registers the asset, adds a scene node, rewrites the dioramaiScene block, and broadcasts the update to dioramai.design automatically. **Never add GLB models by writing raw JSX, \`useGLTF\` calls, or R3F component code.**
+Tag a node with semantic role and behaviors:
+\`\`\`
+set_node_semantics({ "nodeIds": ["your-node-id"], "semantics": { "role": "product", "tags": ["featured"] } })
+add_behavior({ "behavior": { "id": "node-hover", "type": "hover_highlight", "nodeIds": ["your-node-id"] } })
+add_behavior({ "behavior": { "id": "node-info", "type": "show_info", "nodeIds": ["your-node-id"], "params": { "title": "Chair", "description": "Handcrafted oak seat." } } })
+\`\`\`
+
+Then sync to code:
+\`\`\`
+sync_code({ "direction": "toCode" })
+\`\`\`
+
+**Never add GLB models by writing raw JSX, \`useGLTF\` calls, or R3F component code.**
 
 ## Adding a GLB model — fallback when MCP is unavailable
 
@@ -1732,6 +1745,24 @@ export class DioramaiBridgeRuntime {
           return this.reloadSceneFromFile();
         case 'sync_code':
           return this.syncCode(input);
+        case 'set_node_semantics': {
+          if (!isRecord(input) || !Array.isArray(input.nodeIds) || !isRecord(input.semantics)) {
+            return fail('VALIDATION_ERROR', 'set_node_semantics requires { nodeIds: string[], semantics: object }');
+          }
+          return this.applyCommand({ type: 'SET_NODE_SEMANTICS', nodeIds: input.nodeIds, semantics: input.semantics }, source);
+        }
+        case 'add_behavior': {
+          if (!isRecord(input) || !isRecord(input.behavior)) {
+            return fail('VALIDATION_ERROR', 'add_behavior requires { behavior: BehaviorDefinition }');
+          }
+          return this.applyCommand({ type: 'ADD_BEHAVIOR', behavior: input.behavior }, source);
+        }
+        case 'remove_behavior': {
+          if (!isRecord(input) || typeof input.behaviorId !== 'string') {
+            return fail('VALIDATION_ERROR', 'remove_behavior requires { behaviorId: string }');
+          }
+          return this.applyCommand({ type: 'REMOVE_BEHAVIOR', behaviorId: input.behaviorId }, source);
+        }
         default:
           return fail('TOOL_NOT_FOUND', `Unknown Dioramai bridge tool: ${name}`);
       }
@@ -2044,6 +2075,9 @@ const SAFE_TOOL_NAMES = new Set([
   'register_asset',
   'import_glb_asset',
   'update_transform',
+  'set_node_semantics',
+  'add_behavior',
+  'remove_behavior',
   'export_r3f',
   'write_scene_to_file',
   'reload_scene_from_file',

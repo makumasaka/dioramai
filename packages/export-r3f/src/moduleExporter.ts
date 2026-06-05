@@ -210,11 +210,15 @@ const nodeComment = (node: R3fResolvedNode): string => {
   const parts = [`${node.id} - ${node.node.name}`];
   if (node.role) parts.push(`role=${node.role}`);
   if (node.groupId) parts.push(`group=${node.groupId}`);
+  const tags = node.node.semantics?.tags;
+  if (tags && tags.length > 0) parts.push(`tags=${tags.join(',')}`);
+  const label = node.node.semantics?.label;
+  if (label) parts.push(`label=${label}`);
   if (node.traits.length > 0) parts.push(`traits=${node.traits.join(',')}`);
   if (node.node.materialRef?.kind === 'token') parts.push(`material=${node.node.materialRef.token}`);
   if (node.node.assetRef?.kind === 'uri') parts.push('asset=uri');
   const behaviors = behaviorRequirementSummary(node.behaviorRequirements);
-  if (behaviors) parts.push(`behavior=${behaviors}`);
+  if (behaviors) parts.push(`behaviors=${behaviors}`);
   return parts.map(escapeComment).join(' | ');
 };
 

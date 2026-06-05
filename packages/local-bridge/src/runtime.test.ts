@@ -3,7 +3,7 @@ import { createServer as createNetServer, type Server as NetServer } from 'node:
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it, afterEach, beforeEach } from 'vitest';
-import { createEmptyScene, applyCommand, type Command, type SceneNode } from '@dioramai/core';
+import { createEmptyScene, applyCommand, getStarterScene, type Command, type SceneNode } from '@dioramai/core';
 import { parseSceneFromR3fSyncModule } from '@dioramai/export-r3f';
 import {
   DioramaiBridgeRuntime,
@@ -505,6 +505,150 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
     } finally {
       await started.close();
       await closeNetServer(blocker);
+    }
+  });
+});
+
+// ─── Semantic and behavior bridge tools ─────────────────────────────────────
+
+describe('DioramaiBridgeRuntime — semantic and behavior tools', () => {
+  beforeEach(async () => {
+    projectRoot = await mkdtemp(join(tmpdir(), 'dioramai-sem-'));
+    await mkdir(resolve(projectRoot, 'src/generated'), { recursive: true });
+  });
+
+  afterEach(async () => {
+    if (projectRoot) await rm(projectRoot, { recursive: true, force: true });
+    projectRoot = '';
+  });
+
+  it('set_node_semantics applies role and tags through the command reducer', async () => {
+    const scene = getStarterScene('default');
+    const nodeId = 'default-cube-1';
+    const runtime = new DioramaiBridgeRuntime(scene, { projectRoot });
+
+    const result = await runtime.callTool('set_node_semantics', {
+      nodeIds: [nodeId],
+      semantics: { role: 'product', tags: ['featured', 'new'] },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sceneResult = await runtime.callTool('get_scene', {});
+    expect(sceneResult.ok).toBe(true);
+    if (!sceneResult.ok) return;
+    const node = (sceneResult.data.scene as typeof scene).nodes[nodeId];
+    expect(node?.semantics?.role).toBe('product');
+    expect(node?.semantics?.tags).toEqual(['featured', 'new']);
+  });
+
+  it('set_node_semantics returns VALIDATION_ERROR for missing nodeIds', async () => {
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('Sem Err'), { projectRoot });
+    const result = await runtime.callTool('set_node_semantics', { semantics: { role: 'product' } });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('add_behavior attaches a behavior definition to a node', async () => {
+    const scene = getStarterScene('default');
+    const nodeId = 'default-cube-1';
+    const runtime = new DioramaiBridgeRuntime(scene, { projectRoot });
+
+    const result = await runtime.callTool('add_behavior', {
+      behavior: { id: 'beh-hover-1', type: 'hover_highlight', nodeIds: [nodeId] },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sceneResult = await runtime.callTool('get_scene', {});
+    expect(sceneResult.ok).toBe(true);
+    if (!sceneResult.ok) return;
+    const s = sceneResult.data.scene as typeof scene;
+    expect(s.behaviors?.['beh-hover-1']?.type).toBe('hover_highlight');
+    expect(s.nodes[nodeId]?.behaviorRefs).toContain('beh-hover-1');
+  });
+
+  it('add_behavior supports params for show_info type', async () => {
+    const scene = getStarterScene('default');
+    const nodeId = 'default-cube-1';
+    const runtime = new DioramaiBridgeRuntime(scene, { projectRoot });
+
+    const result = await runtime.callTool('add_behavior', {
+      behavior: {
+        id: 'beh-info-1',
+        type: 'show_info',
+        nodeIds: [nodeId],
+        params: { title: 'Oak Chair', description: 'Handcrafted oak seat.' },
+      },
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sceneResult = await runtime.callTool('get_scene', {});
+    expect(sceneResult.ok).toBe(true);
+    if (!sceneResult.ok) return;
+    const s = sceneResult.data.scene as typeof scene;
+    const beh = s.behaviors?.['beh-info-1'];
+    expect(beh?.params?.title).toBe('Oak Chair');
+    expect(beh?.params?.description).toBe('Handcrafted oak seat.');
+  });
+
+  it('add_behavior returns VALIDATION_ERROR for missing behavior object', async () => {
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('Beh Err'), { projectRoot });
+    const result = await runtime.callTool('add_behavior', { behaviorId: 'x' });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('remove_behavior detaches a behavior definition from a node', async () => {
+    const scene = getStarterScene('default');
+    const nodeId = 'default-cube-1';
+    const runtime = new DioramaiBridgeRuntime(scene, { projectRoot });
+
+    // First add a behavior through the tool so it's in the canonical scene
+    await runtime.callTool('add_behavior', {
+      behavior: { id: 'beh-rm-1', type: 'click_select', nodeIds: [nodeId] },
+    });
+
+    const result = await runtime.callTool('remove_behavior', { behaviorId: 'beh-rm-1' });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    const sceneResult = await runtime.callTool('get_scene', {});
+    expect(sceneResult.ok).toBe(true);
+    if (!sceneResult.ok) return;
+    const s = sceneResult.data.scene as typeof scene;
+    expect(s.behaviors?.['beh-rm-1']).toBeUndefined();
+  });
+
+  it('remove_behavior returns VALIDATION_ERROR for missing behaviorId', async () => {
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('Rm Err'), { projectRoot });
+    const result = await runtime.callTool('remove_behavior', { behavior: {} });
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.code).toBe('VALIDATION_ERROR');
+  });
+
+  it('semantic and behavior tools are accessible via the HTTP /tools/ route', async () => {
+    const started = await startDioramaiBridgeServer(0, {
+      projectRoot,
+      // Use starter scene so a non-root node exists for set_node_semantics
+      sessionRelativePath: 'src/generated/dioramai.scene.json',
+    });
+    try {
+      // Use a known non-root node from the starter scene
+      const res = await fetch(`http://127.0.0.1:${started.port}/tools/set_node_semantics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ nodeIds: ['default-cube-1'], semantics: { role: 'product' } }),
+      });
+      expect(res.status).toBe(200);
+      const payload = await res.json() as { ok: boolean };
+      expect(payload.ok).toBe(true);
+    } finally {
+      await started.close();
     }
   });
 });

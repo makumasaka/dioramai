@@ -12,9 +12,10 @@ import type {
 /**
  * Options for the legacy JSX fragment exporter.
  *
- * The exporter never reads editor-only state (selection, command log, undo
- * stack, camera UI state, filesystem paths). The only opt-in addition is a
- * non-scene "studio fill" pair of lights for previews.
+ * The exporter reads only operational scenegraph state (node identity,
+ * hierarchy, transforms, asset refs, semantics, behavior metadata). It never
+ * reads selection, command log, undo stack, camera UI, or filesystem paths.
+ * The only opt-in addition is a studio-fill light pair for previews.
  */
 export interface R3fExportOptions {
   /**
