@@ -197,6 +197,13 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
     const nextScene = applyCommand(state.scene, command);
     if (nextScene === state.scene) return;
 
+    // Commands that reach here had no dedicated bridge endpoint above.
+    // Push the resulting scene to the bridge so it stays in sync with
+    // operations like DELETE_NODE, DUPLICATE_NODE, ADD_NODE, SET_PARENT, etc.
+    if (state.bridgeConnected && command.type !== 'SET_SELECTION') {
+      void postBridgeLoadScene(serializeScene(nextScene)).catch(() => undefined);
+    }
+
     if (command.type === 'REPLACE_SCENE') {
       set({
         scene: nextScene,

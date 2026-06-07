@@ -616,17 +616,38 @@ const fileExists = async (path: string): Promise<boolean> => {
 /** Files/directories that are auto-created by macOS or IDEs and should not
  *  count as "real" content when deciding whether a folder is empty. */
 const IGNORED_DIR_ENTRIES = new Set([
+  // OS / editor noise
   '.DS_Store',
   '.Spotlight-V100',
   '.Trashes',
   '.fseventsd',
   'Thumbs.db',
   'desktop.ini',
+  // VCS / IDE config dirs (always present in a fresh clone)
+  '.git',
   '.cursor',
   '.idea',
   '.vscode',
-  '.git',
+  '.github',
+  // GitHub "empty repo" boilerplate files — present after `git init` or a
+  // brand-new GitHub clone before any real source has been committed.
+  '.gitignore',
+  '.gitattributes',
+  'README.md',
+  'README',
+  'README.txt',
+  'LICENSE',
+  'LICENSE.md',
+  'LICENSE.txt',
+  'LICENCE',
+  'LICENCE.md',
 ]);
+
+// Files that `dioramai init` always overwrites during scaffolding, even
+// without --force.  These are the same "new-repo boilerplate" entries that
+// pass the empty-folder check above; overwriting them is safe because they
+// contain no real project code and Dioramai needs to configure them.
+const INIT_OVERWRITE_ALWAYS = new Set(['.gitignore', '.gitattributes']);
 
 const isDirectoryEmpty = async (path: string): Promise<boolean> => {
   try {
@@ -658,7 +679,8 @@ const writeProjectTextFile = async (
   wroteFiles: string[],
 ): Promise<void> => {
   const absolutePath = projectFilePath(projectRoot, relativePath);
-  if (!force && existsSync(absolutePath)) {
+  const basename = relativePath.split('/').at(-1) ?? relativePath;
+  if (!force && !INIT_OVERWRITE_ALWAYS.has(basename) && existsSync(absolutePath)) {
     throw new Error(`${relativePath} already exists. Pass --force to overwrite it.`);
   }
   await mkdir(dirname(absolutePath), { recursive: true });

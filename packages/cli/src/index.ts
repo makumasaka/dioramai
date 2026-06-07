@@ -69,13 +69,14 @@ const openUrl = (url: string): boolean => {
 };
 
 export const installDependencies = async (projectRoot: string): Promise<number> => {
-  const command = process.platform === 'win32' ? 'npm.cmd' : 'npm';
+  const isWin = process.platform === 'win32';
+  // On Windows, `windowsHide: true` combined with `stdio: 'inherit'` triggers
+  // a Node.js EINVAL bug on some versions. Use `shell: true` on Windows instead
+  // so npm runs through cmd.exe, which avoids the spawn limitation entirely.
+  const child = isWin
+    ? spawn('npm install', [], { cwd: projectRoot, stdio: 'inherit', shell: true })
+    : spawn('npm', ['install'], { cwd: projectRoot, stdio: 'inherit' });
   return new Promise((resolveInstall) => {
-    const child = spawn(command, ['install'], {
-      cwd: projectRoot,
-      stdio: 'inherit',
-      windowsHide: true,
-    });
     child.once('error', () => resolveInstall(1));
     child.once('exit', (code) => resolveInstall(code ?? 1));
   });

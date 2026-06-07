@@ -1,7 +1,16 @@
-import { describe, expect, it, beforeEach } from 'vitest';
+import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { exportSceneToR3fJsx } from '@dioramai/export-r3f';
 import { getStarterScene, parseSceneJson } from '@dioramai/core';
 import { useSceneStore } from './sceneStore';
+
+vi.mock('../bridge/bridgeClient', async (importActual) => ({
+  ...(await importActual<typeof import('../bridge/bridgeClient')>()),
+  postBridgeLoadScene: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+  postBridgeUpdateTransform: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+  postBridgeSetNodeSemantics: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+  postBridgeAddBehavior: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+  postBridgeRemoveBehavior: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+}));
 
 describe('sceneStore — history + command log regression', () => {
   beforeEach(() => {
@@ -103,6 +112,38 @@ describe('sceneStore — history + command log regression', () => {
     const jsx = exportSceneToR3fJsx(useSceneStore.getState().scene);
     expect(jsx).toContain('<group name="Root"');
     expect(jsx).toContain('/* Auto-generated for React Three Fiber');
+  });
+
+  it('forwards DELETE_NODE to the bridge via postBridgeLoadScene when connected', async () => {
+    const { postBridgeLoadScene } = await import('../bridge/bridgeClient');
+    vi.mocked(postBridgeLoadScene).mockClear();
+
+    // Simulate bridge connected
+    useSceneStore.setState({ bridgeConnected: true });
+
+    const cubeId = 'default-cube-1';
+    expect(useSceneStore.getState().scene.nodes[cubeId]).toBeDefined();
+
+    useSceneStore.getState().dispatch({ type: 'DELETE_NODE', nodeId: cubeId });
+
+    // Node removed from local scene immediately
+    expect(useSceneStore.getState().scene.nodes[cubeId]).toBeUndefined();
+
+    // Bridge receives the updated scene (without the cube)
+    expect(postBridgeLoadScene).toHaveBeenCalledTimes(1);
+    const sentJson = vi.mocked(postBridgeLoadScene).mock.calls[0]?.[0] as string;
+    const parsed = parseSceneJson(sentJson);
+    expect(parsed?.nodes[cubeId]).toBeUndefined();
+  });
+
+  it('does not call postBridgeLoadScene for SET_SELECTION even when connected', async () => {
+    const { postBridgeLoadScene } = await import('../bridge/bridgeClient');
+    vi.mocked(postBridgeLoadScene).mockClear();
+
+    useSceneStore.setState({ bridgeConnected: true });
+    useSceneStore.getState().select('default-cube-1');
+
+    expect(postBridgeLoadScene).not.toHaveBeenCalled();
   });
 
   it('recomputes scene from edited timeline commands', () => {

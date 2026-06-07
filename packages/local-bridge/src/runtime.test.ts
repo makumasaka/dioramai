@@ -160,7 +160,8 @@ describe('Dioramai project onboarding', () => {
 
   it('refuses to scaffold a non-empty folder without --force', async () => {
     initRoot = await mkdtemp(join(tmpdir(), 'dioramai-init-nonempty-'));
-    await writeFile(resolve(initRoot, 'README.md'), 'keep me', 'utf8');
+    // package.json is a real project file — not a new-repo boilerplate entry
+    await writeFile(resolve(initRoot, 'package.json'), '{"name":"existing"}', 'utf8');
 
     const result = await initializeDioramaiProject(initRoot, {
       template: 'vite-r3f',
@@ -169,7 +170,24 @@ describe('Dioramai project onboarding', () => {
     expect(result.ok).toBe(false);
     if (result.ok) return;
     expect(result.error.code).toBe('PROJECT_NOT_EMPTY');
-    expect(await readFile(resolve(initRoot, 'README.md'), 'utf8')).toBe('keep me');
+    expect(await readFile(resolve(initRoot, 'package.json'), 'utf8')).toBe('{"name":"existing"}');
+  });
+
+  it('succeeds when the folder only contains new-repo boilerplate files (.gitignore, README.md, LICENSE)', async () => {
+    initRoot = await mkdtemp(join(tmpdir(), 'dioramai-init-newclone-'));
+    await writeFile(resolve(initRoot, '.gitignore'), 'node_modules\n', 'utf8');
+    await writeFile(resolve(initRoot, 'README.md'), '# My project\n', 'utf8');
+    await writeFile(resolve(initRoot, 'LICENSE'), 'MIT\n', 'utf8');
+    await mkdir(resolve(initRoot, '.git'), { recursive: true });
+
+    const result = await initializeDioramaiProject(initRoot, {
+      template: 'vite-r3f',
+    });
+
+    expect(result.ok).toBe(true);
+    // .gitignore from the init template should overwrite the placeholder
+    if (!result.ok) return;
+    expect(result.data.wroteFiles).toContain('package.json');
   });
 
   it('reports a fresh scaffold as doctor-ready with only non-blocking warnings', async () => {
