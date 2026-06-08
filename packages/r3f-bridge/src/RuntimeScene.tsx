@@ -148,9 +148,10 @@ function RuntimeNodeInner({
 
   const hasLight = node.light !== undefined || node.type === 'light';
   const inspectOnly = node.metadata.renderMode === 'gltf-inspect-only';
-  const showMesh = node.type === 'mesh' && !hasLight && !inspectOnly;
+  const showMesh = node.type === 'mesh' && !hasLight;
   const showAsset = showMesh && resolvedAssetUri !== undefined;
-  const showProxy = showMesh && !showAsset;
+  // Inspect-only sub-nodes without an asset are rendered by external code; skip proxy only.
+  const showProxy = showMesh && !showAsset && !inspectOnly;
 
   return (
     <>
