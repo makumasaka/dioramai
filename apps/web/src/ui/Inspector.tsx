@@ -132,7 +132,7 @@ const stringsToParams = (
 
 interface BehaviorParamsEditorProps {
   behavior: BehaviorDefinition;
-  onUpdate: (params: Record<string, unknown>) => void;
+  onUpdate: (params: Record<string, JsonValue>) => void;
 }
 
 function BehaviorParamsEditor({ behavior, onUpdate }: BehaviorParamsEditorProps) {
