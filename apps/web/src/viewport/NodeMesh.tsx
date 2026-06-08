@@ -196,13 +196,11 @@ function NodeMeshInner({ nodeId, children }: NodeMeshProps) {
           />
         ) : null}
         {showAsset ? (
-          <group opacity={isInspectOnly ? 0.5 : 1}>
-            <Suspense
-              fallback={<ProxyMesh color={color} isHovered={isHovered} isSelected={isSelected} />}
-            >
-              <AssetModel uri={assetUri} />
-            </Suspense>
-          </group>
+          <Suspense
+            fallback={<ProxyMesh color={color} isHovered={isHovered} isSelected={isSelected} />}
+          >
+            <AssetModel uri={assetUri} />
+          </Suspense>
         ) : null}
         {showProxy ? (
           <ProxyMesh
