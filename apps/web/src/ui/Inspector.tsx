@@ -9,6 +9,7 @@ import {
   type BehaviorDefinition,
   type BehaviorType,
   type NodeSemantics,
+  type JsonValue,
 } from '@dioramai/core';
 
 const RAD_TO_DEG = 180 / Math.PI;
@@ -198,7 +199,7 @@ function BehaviorControls({ nodeId, behaviorDefs, legacyHover, legacyClick }: Be
     if (def) dispatch({ type: 'REMOVE_BEHAVIOR', behaviorId: def.id });
   };
 
-  const updateParams = (def: BehaviorDefinition, params: Record<string, unknown>) => {
+  const updateParams = (def: BehaviorDefinition, params: Record<string, JsonValue>) => {
     dispatch({
       type: 'ADD_BEHAVIOR',
       behavior: { ...def, params },
