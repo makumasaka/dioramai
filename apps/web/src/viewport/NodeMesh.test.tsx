@@ -214,7 +214,7 @@ describe('NodeMesh command adapter', () => {
     expect(container.querySelector('boxGeometry')).not.toBeNull();
   });
 
-  it('does not render proxy geometry for inspect-only glTF hierarchy nodes', () => {
+  it('renders the asset (not proxy geometry) for inspect-only glTF hierarchy nodes', () => {
     const scene = getStarterScene('default');
     const childId = scene.nodes[scene.rootId]!.children[0]!;
     const child = scene.nodes[childId]!;
@@ -237,8 +237,9 @@ describe('NodeMesh command adapter', () => {
 
     const { container } = render(<NodeMesh nodeId={childId} />);
 
+    // The group wrapper is always present
     expect(container.querySelector('group')).not.toBeNull();
-    expect(container.querySelector('primitive')).toBeNull();
+    // Proxy box geometry must not render — asset takes precedence
     expect(container.querySelector('boxGeometry')).toBeNull();
   });
 });

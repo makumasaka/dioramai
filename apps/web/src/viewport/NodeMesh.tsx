@@ -170,9 +170,10 @@ function NodeMeshInner({ nodeId, children }: NodeMeshProps) {
 
   const showLight = node.light !== undefined || node.type === 'light';
   const isInspectOnly = node.metadata.renderMode === 'gltf-inspect-only';
-  const showMesh = node.type === 'mesh' && !showLight && !isInspectOnly;
+  const showMesh = node.type === 'mesh' && !showLight;
   const showAsset = showMesh && assetUri !== undefined;
-  const showProxy = showMesh && !showAsset;
+  // Inspect-only sub-nodes (no asset URI) are rendered by external animation code — no proxy here.
+  const showProxy = showMesh && !showAsset && !isInspectOnly;
 
   return (
     <>
@@ -195,11 +196,13 @@ function NodeMeshInner({ nodeId, children }: NodeMeshProps) {
           />
         ) : null}
         {showAsset ? (
-          <Suspense
-            fallback={<ProxyMesh color={color} isHovered={isHovered} isSelected={isSelected} />}
-          >
-            <AssetModel uri={assetUri} />
-          </Suspense>
+          <group opacity={isInspectOnly ? 0.5 : 1}>
+            <Suspense
+              fallback={<ProxyMesh color={color} isHovered={isHovered} isSelected={isSelected} />}
+            >
+              <AssetModel uri={assetUri} />
+            </Suspense>
+          </group>
         ) : null}
         {showProxy ? (
           <ProxyMesh
