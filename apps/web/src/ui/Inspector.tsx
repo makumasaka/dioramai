@@ -107,7 +107,7 @@ const BEHAVIOR_PARAMS: Partial<Record<BehaviorType, ParamField[]>> = {
 };
 
 // Flatten behavior.params (Record<string,JsonValue>) to string map for editing
-const paramsToStrings = (params: Record<string, unknown> | undefined): Record<string, string> => {
+const paramsToStrings = (params: Record<string, JsonValue> | undefined): Record<string, string> => {
   if (!params) return {};
   const out: Record<string, string> = {};
   for (const [k, v] of Object.entries(params)) {
@@ -120,8 +120,8 @@ const paramsToStrings = (params: Record<string, unknown> | undefined): Record<st
 const stringsToParams = (
   fields: ParamField[],
   values: Record<string, string>,
-): Record<string, unknown> => {
-  const out: Record<string, unknown> = {};
+): Record<string, JsonValue> => {
+  const out: Record<string, JsonValue> = {};
   for (const field of fields) {
     const raw = values[field.key];
     if (raw === undefined || raw === '') continue;
@@ -138,7 +138,7 @@ interface BehaviorParamsEditorProps {
 function BehaviorParamsEditor({ behavior, onUpdate }: BehaviorParamsEditorProps) {
   const fields = BEHAVIOR_PARAMS[behavior.type];
   const [values, setValues] = useState<Record<string, string>>(() =>
-    paramsToStrings(behavior.params as Record<string, unknown> | undefined),
+    paramsToStrings(behavior.params),
   );
 
   if (!fields || fields.length === 0) return null;
