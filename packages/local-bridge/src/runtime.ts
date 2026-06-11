@@ -18,6 +18,11 @@ import {
   parseSceneFromR3fSyncModule,
 } from '@dioramai/export-r3f';
 import { parseSceneJson, serializeScene } from '@dioramai/schema';
+import {
+  outOfBandAssetUsageFix,
+  outOfBandAssetUsageMessage,
+  scanOutOfBandAssetUsage,
+} from './outOfBandAssetUsage';
 
 export const DEFAULT_BRIDGE_PORT = 7777;
 
@@ -1198,10 +1203,12 @@ export const doctorDioramaiProject = async (
     let assetDirPath = resolve(projectRoot, DEFAULT_ASSET_DIR_RELATIVE_PATH);
     let generatedModulePath = resolve(projectRoot, DEFAULT_GENERATED_MODULE_RELATIVE_PATH);
     let sceneJsonPath = resolve(projectRoot, DEFAULT_SESSION_RELATIVE_PATH);
+    let publicAssetBase = DEFAULT_PUBLIC_URL_BASE;
     try {
       assetDirPath = resolve(projectRoot, configuredRelativePath(loadedConfig.config, 'assetDir', DEFAULT_ASSET_DIR_RELATIVE_PATH));
       generatedModulePath = resolve(projectRoot, configuredRelativePath(loadedConfig.config, 'generatedSceneFile', DEFAULT_GENERATED_MODULE_RELATIVE_PATH));
       sceneJsonPath = resolve(projectRoot, configuredRelativePath(loadedConfig.config, 'sceneJsonFile', DEFAULT_SESSION_RELATIVE_PATH));
+      publicAssetBase = loadedConfig.config.publicAssetBase ?? DEFAULT_PUBLIC_URL_BASE;
       if (![assetDirPath, generatedModulePath, sceneJsonPath].every((path) => isPathInside(path, projectRoot))) {
         add({
           status: 'fail',
@@ -1239,6 +1246,7 @@ export const doctorDioramaiProject = async (
           fix: `Create ${relative(projectRoot, assetDirPath).replace(/\\/g, '/')} or rerun init with --force.`,
         });
 
+    let canonicalScene: Scene | null = null;
     const generatedFileExists = await fileExists(generatedModulePath);
     add(generatedFileExists
       ? {
@@ -1256,6 +1264,7 @@ export const doctorDioramaiProject = async (
     if (generatedFileExists) {
       const code = await readFile(generatedModulePath, 'utf8');
       const parsed = parseSceneFromR3fSyncModule(code);
+      if (parsed.ok) canonicalScene = parsed.scene;
       add(parsed.ok
         ? {
             status: 'pass',
@@ -1270,6 +1279,7 @@ export const doctorDioramaiProject = async (
           });
     } else if (await fileExists(sceneJsonPath)) {
       const parsedScene = parseSceneJson(await readFile(sceneJsonPath, 'utf8'));
+      canonicalScene = parsedScene;
       add(parsedScene
         ? {
             status: 'pass',
@@ -1310,6 +1320,26 @@ export const doctorDioramaiProject = async (
           label: 'GLB assets',
           message: 'No GLB/GLTF assets were found yet.',
           fix: 'Drop .glb or .gltf files into public/assets/models.',
+        });
+
+    const outOfBandAssetUsages = await scanOutOfBandAssetUsage(projectRoot, {
+      generatedModulePath,
+      sceneJsonPath,
+      assetDirPath,
+      publicAssetBase,
+      canonicalScene,
+    });
+    add(outOfBandAssetUsages.length > 0
+      ? {
+          status: 'warn',
+          label: 'Out-of-band GLB rendering',
+          message: outOfBandAssetUsageMessage(outOfBandAssetUsages),
+          fix: outOfBandAssetUsageFix,
+        }
+      : {
+          status: 'pass',
+          label: 'Out-of-band GLB rendering',
+          message: 'No app source files load GLB/GLTF assets outside the generated Dioramai scene.',
         });
 
     const appImport = await appImportsGeneratedScene(projectRoot);
@@ -1660,6 +1690,7 @@ export class DioramaiBridgeRuntime {
     publicAssetBase: string;
     sceneJsonFile: string;
     sceneJsonFileExists: boolean;
+    projectWarnings: string[];
     currentSceneLoaded: boolean;
     nodeCount: number;
     assetCount: number;
@@ -1674,6 +1705,13 @@ export class DioramaiBridgeRuntime {
         return false;
       }
     };
+    const outOfBandAssetUsages = await scanOutOfBandAssetUsage(this.projectRoot, {
+      generatedModulePath: this.generatedModulePath,
+      sceneJsonPath: this.sessionPath,
+      assetDirPath: this.assetDirPath,
+      publicAssetBase: this.publicUrlBase,
+      canonicalScene: scene.ok ? scene.data.scene : null,
+    });
     return ok({
       bridgeConnected: true,
       projectRoot: this.projectRoot,
@@ -1687,6 +1725,9 @@ export class DioramaiBridgeRuntime {
       publicAssetBase: this.publicUrlBase,
       sceneJsonFile: this.sessionPath,
       sceneJsonFileExists: await exists(this.sessionPath),
+      projectWarnings: outOfBandAssetUsages.length > 0
+        ? [outOfBandAssetUsageMessage(outOfBandAssetUsages)]
+        : [],
       currentSceneLoaded: scene.ok,
       nodeCount: scene.ok ? Object.keys(scene.data.scene.nodes).length : 0,
       assetCount: scene.ok ? Object.keys(scene.data.scene.assets ?? {}).length : 0,

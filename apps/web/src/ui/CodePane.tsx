@@ -21,6 +21,7 @@ export function CodePane() {
     () => exportSceneToR3fSyncModule(scene, { includeStudioLights: true }).code,
     [scene],
   );
+  const projectWarning = projectStatus?.projectWarnings[0] ?? projectStatus?.configWarnings[0];
 
   useEffect(() => {
     if (!bridgeConnected) return;
@@ -95,7 +96,7 @@ export function CodePane() {
       <div className="code-pane__status">
         {status ??
           (bridgeConnected
-            ? `Bridge connected - ${projectStatus?.assetDirExists ? 'assets ready' : 'asset dir missing'}`
+            ? projectWarning ?? `Bridge connected - ${projectStatus?.assetDirExists ? 'assets ready' : 'asset dir missing'}`
             : bridgeLastError ?? 'Bridge offline')}
       </div>
       <pre className="code-pane__preview">{codePreview}</pre>

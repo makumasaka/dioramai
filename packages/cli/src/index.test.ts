@@ -132,7 +132,7 @@ describe('dioramai init CLI', () => {
 
   it('still refuses a non-empty folder unless --force', async () => {
     projectRoot = await mkdtemp(join(tmpdir(), 'dioramai-cli-nonempty-'));
-    await writeFile(resolve(projectRoot, 'README.md'), 'keep me', 'utf8');
+    await writeFile(resolve(projectRoot, 'package.json'), '{"name":"existing"}', 'utf8');
     const capture = createIo();
 
     const exitCode = await runCli(
@@ -144,7 +144,7 @@ describe('dioramai init CLI', () => {
     expect(exitCode).toBe(1);
     expect(capture.stderr()).toContain('Dioramai init expected an empty folder');
     expect(capture.stderr()).toContain('pass --force');
-    expect(await readFile(resolve(projectRoot, 'README.md'), 'utf8')).toBe('keep me');
+    expect(await readFile(resolve(projectRoot, 'package.json'), 'utf8')).toBe('{"name":"existing"}');
   });
 });
 
@@ -282,6 +282,34 @@ describe('dioramai dev CLI', () => {
     expect(capture.stdout()).toContain('- GLBs discovered: 2');
     expect(capture.stdout()).toContain('public/assets/models/chair.glb');
     expect(capture.stdout()).toContain('public/assets/models/table.gltf');
+  });
+
+  it('prints a preflight warning for out-of-band GLB rendering', async () => {
+    await initProject();
+    await writeFile(resolve(projectRoot, 'src/WalkingAndroid.tsx'), [
+      "import { useGLTF } from '@react-three/drei';",
+      "const MODEL_URL = '/assets/models/android.glb';",
+      'export function WalkingAndroid() {',
+      '  useGLTF(MODEL_URL);',
+      '  return null;',
+      '}',
+      '',
+    ].join('\n'), 'utf8');
+    const capture = createIo();
+
+    const exitCode = await runCli(
+      ['dev', '--projectRoot', projectRoot],
+      {},
+      capture.io,
+      {
+        startBridgeServer: async (requestedPort) => fakeStartedBridge(projectRoot, requestedPort ?? 7777, requestedPort ?? 7777),
+      },
+    );
+
+    expect(exitCode).toBe(0);
+    expect(capture.stdout()).toContain('Out-of-band GLB rendering');
+    expect(capture.stdout()).toContain('/assets/models/android.glb');
+    expect(capture.stdout()).toContain('import_glb_asset');
   });
 
   it('uses fallback bridge ports and opens the selected shell URL with token params', async () => {

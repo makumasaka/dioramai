@@ -212,6 +212,36 @@ describe('Dioramai project onboarding', () => {
     ]));
   });
 
+  it('warns when app code loads a GLB outside the canonical scene', async () => {
+    initRoot = await mkdtemp(join(tmpdir(), 'dioramai-doctor-out-of-band-'));
+    const initialized = await initializeDioramaiProject(initRoot, {
+      template: 'vite-r3f',
+    });
+    expect(initialized.ok).toBe(true);
+    await writeFile(resolve(initRoot, 'src/WalkingAndroid.tsx'), [
+      "import { useGLTF } from '@react-three/drei';",
+      '',
+      "const MODEL_URL = '/assets/models/android.glb';",
+      '',
+      'export function WalkingAndroid() {',
+      '  useGLTF(MODEL_URL);',
+      '  return null;',
+      '}',
+      '',
+    ].join('\n'), 'utf8');
+
+    const doctor = await doctorDioramaiProject(initRoot, { port: 9 });
+
+    expect(doctor.ok).toBe(true);
+    if (!doctor.ok) return;
+    expect(doctor.data.ok).toBe(true);
+    const warning = doctor.data.items.find((item) => item.label === 'Out-of-band GLB rendering');
+    expect(warning?.status).toBe('warn');
+    expect(warning?.message).toContain('/assets/models/android.glb');
+    expect(warning?.message).toContain('src/WalkingAndroid.tsx');
+    expect(warning?.fix).toContain('import_glb_asset');
+  });
+
   it('reports clear doctor failures for missing project essentials', async () => {
     initRoot = await mkdtemp(join(tmpdir(), 'dioramai-doctor-missing-'));
 
@@ -334,6 +364,30 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
     expect(status.data.generatedFileExists).toBe(false);
     expect(status.data.currentSceneLoaded).toBe(true);
     expect(status.data.publicAssetBase).toBe('/assets/models');
+  });
+
+  it('includes out-of-band GLB warnings in project status', async () => {
+    await mkdir(resolve(projectRoot, 'src'), { recursive: true });
+    await writeFile(resolve(projectRoot, 'src/WalkingAndroid.tsx'), [
+      "import { useGLTF } from '@react-three/drei';",
+      "const MODEL_URL = '/assets/models/android.glb';",
+      'export function WalkingAndroid() {',
+      '  useGLTF(MODEL_URL);',
+      '  return null;',
+      '}',
+      '',
+    ].join('\n'), 'utf8');
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('Config Test'), {
+      projectRoot,
+    });
+
+    const status = await runtime.callTool('get_project_status', {});
+
+    expect(status.ok).toBe(true);
+    if (!status.ok) return;
+    expect(status.data.projectWarnings).toHaveLength(1);
+    expect(status.data.projectWarnings[0]).toContain('/assets/models/android.glb');
+    expect(status.data.projectWarnings[0]).toContain('src/WalkingAndroid.tsx');
   });
 
   it('rejects workspace paths outside the project root', async () => {

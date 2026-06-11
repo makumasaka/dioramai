@@ -36,6 +36,7 @@ describe('CodePane sync controls', () => {
         publicAssetBase: '/assets/models',
         sceneJsonFile: '/project/src/generated/dioramai.scene.json',
         sceneJsonFileExists: true,
+        projectWarnings: [],
         currentSceneLoaded: true,
         nodeCount: 2,
         assetCount: 0,
@@ -73,5 +74,34 @@ describe('CodePane sync controls', () => {
     await waitFor(() => {
       expect(useSceneStore.getState().scene.nodes['default-cube-1']?.transform.position).toEqual([0, 0, 0]);
     });
+  });
+
+  it('shows project warnings from bridge status', async () => {
+    vi.mocked(fetchBridgeProjectStatus).mockResolvedValue({
+      ok: true,
+      data: {
+        bridgeConnected: true,
+        projectRoot: '/project',
+        configFound: true,
+        configPath: '/project/dioramai.config.json',
+        configWarnings: [],
+        assetDir: '/project/public/assets/models',
+        assetDirExists: true,
+        generatedSceneFile: '/project/src/generated/DioramaiScene.generated.tsx',
+        generatedFileExists: true,
+        publicAssetBase: '/assets/models',
+        sceneJsonFile: '/project/src/generated/dioramai.scene.json',
+        sceneJsonFileExists: true,
+        projectWarnings: ['App code loads /assets/models/android.glb outside the canonical scene.'],
+        currentSceneLoaded: true,
+        nodeCount: 2,
+        assetCount: 0,
+        lastSync: null,
+      },
+    });
+
+    render(<CodePane />);
+
+    expect(await screen.findByText(/outside the canonical scene/)).toBeInTheDocument();
   });
 });

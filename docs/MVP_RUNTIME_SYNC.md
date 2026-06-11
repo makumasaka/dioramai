@@ -40,6 +40,13 @@ MVP code -> runtime sync parses only the `dioramaiScene` object. Arbitrary JSX
 roundtripping is deferred. Developers should customize wrapper files that import
 `DioramaiScene`, not the generated renderer body.
 
+GLBs that should appear in Dioramai must be registered in the canonical scene
+document with `import_glb_asset` or equivalent scene JSON edits. App-specific
+components may own playback and interaction behavior, but they should bind that
+behavior to canonical node IDs instead of loading the same model with sibling
+`useGLTF`/`GLTFLoader` code. The local bridge warns when app source files appear
+to load GLB/GLTF assets outside the generated scene.
+
 ## Runtime -> Code
 
 1. User selects a node in the R3F viewport.

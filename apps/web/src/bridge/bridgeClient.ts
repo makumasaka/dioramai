@@ -62,6 +62,7 @@ export type BridgeProjectStatus = {
   publicAssetBase: string;
   sceneJsonFile: string;
   sceneJsonFileExists: boolean;
+  projectWarnings: string[];
   currentSceneLoaded: boolean;
   nodeCount: number;
   assetCount: number;
