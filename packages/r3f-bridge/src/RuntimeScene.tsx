@@ -7,12 +7,11 @@ import {
   useRef,
   useState,
   type ReactNode,
-  type RefObject,
 } from 'react';
 import { TransformControls, useGLTF } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
 import type { Command, Scene } from '@dioramai/core';
-import type { Group, Object3D } from 'three';
+import type { Group } from 'three';
 import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
 import {
   commandFromObject3DTransform,
@@ -88,6 +87,16 @@ function RuntimeNodeInner({
   children,
 }: RuntimeNodeProps) {
   const groupRef = useRef<Group | null>(null);
+  // Track the live group instance in state so TransformControls and the
+  // registry re-attach whenever React replaces the underlying Object3D.
+  // Passing a RefObject to drei's TransformControls is unsafe: drei reads
+  // `ref.current` once and never re-attaches, leaving the gizmo bound to a
+  // stale, detached group.
+  const [groupObject, setGroupObject] = useState<Group | null>(null);
+  const handleGroupRef = useCallback((group: Group | null) => {
+    groupRef.current = group;
+    setGroupObject(group);
+  }, []);
   const controlsRef = useRef<TransformControlsImpl | null>(null);
   const [isHovered, setIsHovered] = useState(false);
 
@@ -95,10 +104,9 @@ function RuntimeNodeInner({
   const isSelected = selectedId === nodeId;
 
   useLayoutEffect(() => {
-    const group = groupRef.current;
-    if (!group || !registry) return undefined;
-    return registry.register({ nodeId, object: group });
-  }, [nodeId, registry]);
+    if (!groupObject || !registry) return undefined;
+    return registry.register({ nodeId, object: groupObject });
+  }, [nodeId, registry, groupObject]);
 
   const commitTransform = useCallback(() => {
     const object = groupRef.current;
@@ -156,7 +164,7 @@ function RuntimeNodeInner({
   return (
     <>
       <group
-        ref={groupRef}
+        ref={handleGroupRef}
         name={node.name}
         position={node.transform.position}
         rotation={node.transform.rotation}
@@ -183,11 +191,11 @@ function RuntimeNodeInner({
         {showProxy ? <ProxyMesh isHovered={isHovered} isSelected={isSelected} /> : null}
         {children}
       </group>
-      {isSelected ? (
+      {isSelected && groupObject ? (
         <TransformControls
           key={`dioramai-tc-${nodeId}`}
           ref={controlsRef}
-          object={groupRef as RefObject<Object3D | null> as RefObject<Object3D>}
+          object={groupObject}
           mode={gizmoMode}
         />
       ) : null}
