@@ -38,7 +38,7 @@ const publicBaseForScan = (publicAssetBase: string): string => {
   return normalized.startsWith('/') ? normalized : `/${normalized}`;
 };
 
-const comparableAssetUri = (
+export const comparableAssetUri = (
   value: string,
   publicAssetBase: string,
   assetDirRelativePath: string,

@@ -47,6 +47,15 @@ describe('CodePane sync controls', () => {
     vi.mocked(postBridgeWriteSceneToFile).mockResolvedValue({ ok: true, data: {} });
   });
 
+  it('writes canvas scene to project code when Canvas → Code is clicked', async () => {
+    render(<CodePane />);
+    fireEvent.click(screen.getByRole('button', { name: 'Canvas → Code' }));
+
+    await waitFor(() => {
+      expect(postBridgeWriteSceneToFile).toHaveBeenCalledTimes(1);
+    });
+  });
+
   it('applies the scene returned by reload_scene_from_file immediately', async () => {
     const base = getStarterScene('default');
     const reloaded = applyCommand(base, {
@@ -70,7 +79,7 @@ describe('CodePane sync controls', () => {
     });
 
     render(<CodePane />);
-    fireEvent.click(screen.getByRole('button', { name: 'Reload' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Code → Canvas' }));
 
     await waitFor(() => {
       expect(useSceneStore.getState().scene.nodes['default-cube-1']?.transform.position).toEqual([0, 0, 0]);
@@ -93,7 +102,10 @@ describe('CodePane sync controls', () => {
         publicAssetBase: '/assets/models',
         sceneJsonFile: '/project/src/generated/dioramai.scene.json',
         sceneJsonFileExists: true,
-        projectWarnings: ['App code loads /assets/models/android.glb outside the canonical scene.'],
+        projectWarnings: [
+          'App code loads /assets/models/android.glb outside the canonical scene.',
+          'Canonical GLB/GLTF nodes are hidden: Orange Armor Android (/assets/models/android.glb).',
+        ],
         currentSceneLoaded: true,
         nodeCount: 2,
         assetCount: 0,
@@ -104,5 +116,6 @@ describe('CodePane sync controls', () => {
     render(<CodePane />);
 
     expect(await screen.findByText(/outside the canonical scene/)).toBeInTheDocument();
+    expect(screen.getByText(/Canonical GLB\/GLTF nodes are hidden/)).toBeInTheDocument();
   });
 });

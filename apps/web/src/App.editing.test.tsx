@@ -14,11 +14,6 @@ const expandTimeline = async (user: ReturnType<typeof userEvent.setup>) => {
   await user.click(toggleBtn);
 };
 
-const expandSceneLoader = async (user: ReturnType<typeof userEvent.setup>) => {
-  const toggleBtn = screen.getByTitle('Expand scene tools');
-  await user.click(toggleBtn);
-};
-
 const treeCubeButton = (): HTMLElement => {
   const btn = screen
     .getAllByRole('button')
@@ -51,6 +46,10 @@ describe('App — core editing flows (component)', () => {
     expect(screen.queryByRole('button', { name: 'Line' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Grid' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Circle' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'To root' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Dup' })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Dup tree' })).not.toBeInTheDocument();
+    expect(screen.getByRole('button', { name: 'Copy GLB Into Project' })).toBeInTheDocument();
   });
 
   it('selects default cube and edits position from the inspector', async () => {
@@ -112,16 +111,6 @@ describe('App — core editing flows (component)', () => {
     ]);
   });
 
-  it('duplicates the selected non-root node', async () => {
-    render(<App />);
-
-    await user.click(treeCubeButton());
-    await user.click(screen.getByRole('button', { name: 'Dup' }));
-
-    const names = Object.values(useSceneStore.getState().scene.nodes).map((n) => n.name);
-    expect(names.filter((n) => n.includes('copy')).length).toBeGreaterThanOrEqual(1);
-  });
-
   it('shows timeline rows for structural edits but not selection', async () => {
     render(<App />);
 
@@ -169,7 +158,7 @@ describe('App — core editing flows (component)', () => {
     expect(useSceneStore.getState().scene.nodes['default-cube-1']?.transform.position[0]).toBe(6);
   });
 
-  it('clears command log when resetting the scene as a session boundary', async () => {
+  it('preserves command log and undo history when clearing the scene', async () => {
     render(<App />);
 
     await act(() => {
@@ -181,11 +170,15 @@ describe('App — core editing flows (component)', () => {
     });
     expect(useSceneStore.getState().commandLog).toHaveLength(1);
 
-    await user.click(screen.getByRole('button', { name: 'Reset' }));
+    await user.click(screen.getByRole('button', { name: 'Clear Scene' }));
 
-    expect(useSceneStore.getState().scene.rootId).toBe('default-root');
-    expect(useSceneStore.getState().commandLog).toHaveLength(0);
-    expect(useSceneStore.getState().past).toHaveLength(0);
+    const scene = useSceneStore.getState().scene;
+    expect(Object.keys(scene.nodes)).toHaveLength(1);
+    expect(scene.nodes[scene.rootId]?.type).toBe('root');
+    expect(scene.nodes[scene.rootId]?.children).toHaveLength(0);
+    expect(scene.nodes['default-cube-1']).toBeUndefined();
+    expect(useSceneStore.getState().commandLog).toHaveLength(1);
+    expect(useSceneStore.getState().past.length).toBeGreaterThan(0);
     expect(useSceneStore.getState().future).toHaveLength(0);
   });
 
@@ -218,7 +211,6 @@ describe('App — core editing flows (component)', () => {
     await user.type(spinbuttons[0]!, '1.75');
     await user.tab();
 
-    await expandSceneLoader(user);
     await user.click(screen.getByRole('button', { name: 'JSON' }));
     expect(createObjectURL).toHaveBeenCalledTimes(1);
     const blob = createObjectURL.mock.calls[0]?.[0] as Blob;

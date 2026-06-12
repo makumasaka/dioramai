@@ -6,12 +6,7 @@ import {
   postBridgeRegisterGlbAssetPath,
 } from '../bridge/bridgeClient';
 
-interface SceneLoaderProps {
-  open?: boolean;
-  onToggle?: () => void;
-}
-
-export function SceneLoader({ open = true, onToggle }: SceneLoaderProps) {
+export function SceneLoader() {
   const exportSceneJson = useSceneStore((s) => s.exportSceneJson);
   const scene = useSceneStore((s) => s.scene);
   const applyBridgeScene = useSceneStore((s) => s.applyBridgeScene);
@@ -98,61 +93,43 @@ export function SceneLoader({ open = true, onToggle }: SceneLoaderProps) {
   };
 
   return (
-    <div className={`scene-loader${open ? ' scene-loader--open' : ''}`}>
-      {onToggle ? (
-        <button
-          type="button"
-          className="scene-loader__toggle"
-          onClick={onToggle}
-          aria-expanded={open}
-          title={open ? 'Collapse scene tools' : 'Expand scene tools'}
-        >
-          Scene {open ? '▲' : '▼'}
+    <div className="scene-loader">
+      <button type="button" onClick={handleImportGlbClick}>
+        Copy GLB Into Project
+      </button>
+      <input
+        ref={glbFileRef}
+        type="file"
+        accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
+        hidden
+        onChange={handleGlbFile}
+      />
+      <label className="scene-loader__path">
+        <span className="scene-loader__muted">Path</span>
+        <input
+          type="text"
+          value={glbPath}
+          placeholder="public/assets/models/chair.glb"
+          onChange={(event) => setGlbPath(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter') handleRegisterGlbPath();
+          }}
+        />
+      </label>
+      <button type="button" onClick={handleRegisterGlbPath}>
+        Register GLB
+      </button>
+      <div className="scene-loader__divider" aria-hidden="true" />
+      <div className="scene-loader__group scene-loader__group--export" aria-label="Export options">
+        <span className="scene-loader__muted">Export</span>
+        <button type="button" onClick={handleExportJson}>
+          JSON
         </button>
-      ) : null}
-
-      {open ? (
-        <div className="scene-loader__body">
-          <button type="button" onClick={handleImportGlbClick}>
-            Copy GLB Into Project
-          </button>
-          <input
-            ref={glbFileRef}
-            type="file"
-            accept=".glb,.gltf,model/gltf-binary,model/gltf+json"
-            hidden
-            onChange={handleGlbFile}
-          />
-          <label className="scene-loader__path">
-            <span className="scene-loader__muted">Path</span>
-            <input
-              type="text"
-              value={glbPath}
-              placeholder="public/assets/models/chair.glb"
-              onChange={(event) => setGlbPath(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key === 'Enter') handleRegisterGlbPath();
-              }}
-            />
-          </label>
-          <button type="button" onClick={handleRegisterGlbPath}>
-            Register GLB
-          </button>
-          <div className="scene-loader__divider" aria-hidden="true" />
-          <div className="scene-loader__group scene-loader__group--export" aria-label="Export options">
-            <span className="scene-loader__muted">Export</span>
-            <button type="button" onClick={handleExportJson}>
-              JSON
-            </button>
-            <button type="button" onClick={handleCopyR3f} title="Copy JSX for React Three Fiber">
-              R3F
-            </button>
-          </div>
-          {status ? <span className="scene-loader__status">{status}</span> : null}
-        </div>
-      ) : (
-        status ? <span className="scene-loader__status">{status}</span> : null
-      )}
+        <button type="button" onClick={handleCopyR3f} title="Copy JSX for React Three Fiber">
+          R3F
+        </button>
+      </div>
+      {status ? <span className="scene-loader__status">{status}</span> : null}
     </div>
   );
 }

@@ -4,7 +4,7 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it, afterEach, beforeEach } from 'vitest';
 import { createEmptyScene, applyCommand, getStarterScene, type Command, type SceneNode } from '@dioramai/core';
-import { parseSceneFromR3fSyncModule } from '@dioramai/export-r3f';
+import { exportSceneToR3fSyncModule, parseSceneFromR3fSyncModule } from '@dioramai/export-r3f';
 import {
   DioramaiBridgeRuntime,
   doctorDioramaiProject,
@@ -40,6 +40,29 @@ const createTestGlb = (): Buffer => {
   buffer.writeUInt32LE(0x4e4f534a, 16);
   jsonChunk.copy(buffer, 20);
   return buffer;
+};
+
+const createHiddenAndroidScene = () => {
+  const scene = createEmptyScene('Hidden Android Test');
+  const androidNode = {
+    id: 'asset-android-node',
+    name: 'Orange Armor Android',
+    type: 'mesh',
+    children: [],
+    transform: {
+      position: [0, 0, 0],
+      rotation: [0, 0, 0],
+      scale: [1, 1, 1],
+    },
+    visible: false,
+    metadata: {},
+    assetRef: { kind: 'uri', uri: '/assets/models/android.glb' },
+  } satisfies SceneNode;
+  return applyCommand(scene, {
+    type: 'ADD_NODE',
+    parentId: scene.rootId,
+    node: androidNode,
+  });
 };
 
 const waitFor = async (predicate: () => Promise<boolean>, timeoutMs = 1500): Promise<boolean> => {
@@ -242,6 +265,41 @@ describe('Dioramai project onboarding', () => {
     expect(warning?.fix).toContain('import_glb_asset');
   });
 
+  it('fails doctor when a canonical GLB node is hidden and app code loads the same asset', async () => {
+    initRoot = await mkdtemp(join(tmpdir(), 'dioramai-doctor-hidden-canonical-'));
+    const initialized = await initializeDioramaiProject(initRoot, {
+      template: 'vite-r3f',
+    });
+    expect(initialized.ok).toBe(true);
+    await writeFile(
+      resolve(initRoot, 'src/generated/DioramaiScene.generated.tsx'),
+      exportSceneToR3fSyncModule(createHiddenAndroidScene()).code,
+      'utf8',
+    );
+    await writeFile(resolve(initRoot, 'src/AnimatedAndroid.tsx'), [
+      "import { useGLTF } from '@react-three/drei';",
+      '',
+      "const ANDROID_URI = '/assets/models/android.glb';",
+      '',
+      'export function AnimatedAndroid() {',
+      '  useGLTF(ANDROID_URI);',
+      '  return null;',
+      '}',
+      '',
+    ].join('\n'), 'utf8');
+
+    const doctor = await doctorDioramaiProject(initRoot, { port: 9 });
+
+    expect(doctor.ok).toBe(true);
+    if (!doctor.ok) return;
+    expect(doctor.data.ok).toBe(false);
+    const hidden = doctor.data.items.find((item) => item.label === 'Hidden canonical GLB assets');
+    expect(hidden?.status).toBe('fail');
+    expect(hidden?.message).toContain('Orange Armor Android');
+    expect(hidden?.message).toContain('/assets/models/android.glb');
+    expect(hidden?.fix).toContain('Keep canonical GLB nodes visible');
+  });
+
   it('reports clear doctor failures for missing project essentials', async () => {
     initRoot = await mkdtemp(join(tmpdir(), 'dioramai-doctor-missing-'));
 
@@ -388,6 +446,30 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
     expect(status.data.projectWarnings).toHaveLength(1);
     expect(status.data.projectWarnings[0]).toContain('/assets/models/android.glb');
     expect(status.data.projectWarnings[0]).toContain('src/WalkingAndroid.tsx');
+  });
+
+  it('includes hidden canonical GLB warnings in project status', async () => {
+    await mkdir(resolve(projectRoot, 'src'), { recursive: true });
+    await writeFile(resolve(projectRoot, 'src/AnimatedAndroid.tsx'), [
+      "import { useGLTF } from '@react-three/drei';",
+      "const ANDROID_URI = '/assets/models/android.glb';",
+      'export function AnimatedAndroid() {',
+      '  useGLTF(ANDROID_URI);',
+      '  return null;',
+      '}',
+      '',
+    ].join('\n'), 'utf8');
+    const runtime = new DioramaiBridgeRuntime(createHiddenAndroidScene(), {
+      projectRoot,
+    });
+
+    const status = await runtime.callTool('get_project_status', {});
+
+    expect(status.ok).toBe(true);
+    if (!status.ok) return;
+    expect(status.data.projectWarnings).toHaveLength(2);
+    expect(status.data.projectWarnings[1]).toContain('Canonical GLB/GLTF nodes are hidden');
+    expect(status.data.projectWarnings[1]).toContain('Orange Armor Android');
   });
 
   it('rejects workspace paths outside the project root', async () => {

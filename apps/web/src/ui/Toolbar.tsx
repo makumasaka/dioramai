@@ -1,14 +1,11 @@
-import { useState } from 'react';
 import { useSceneStore } from '../store/sceneStore';
-import { getParent } from '@dioramai/core';
 import { SceneLoader } from './SceneLoader';
 
 export function Toolbar() {
-  const [sceneOpen, setSceneOpen] = useState(false);
   const scene = useSceneStore((s) => s.scene);
   const selectedId = scene.selection;
   const dispatch = useSceneStore((s) => s.dispatch);
-  const reset = useSceneStore((s) => s.reset);
+  const clearScene = useSceneStore((s) => s.clearScene);
   const undo = useSceneStore((s) => s.undo);
   const redo = useSceneStore((s) => s.redo);
   const pastCount = useSceneStore((s) => s.past.length);
@@ -19,26 +16,10 @@ export function Toolbar() {
 
   const selectedNode = selectedId ? scene.nodes[selectedId] : null;
   const isRootSelected = selectedId === scene.rootId;
-  const parentOfSelected = selectedId ? getParent(scene, selectedId) : undefined;
 
   const handleDelete = () => {
     if (!selectedId || isRootSelected) return;
     dispatch({ type: 'DELETE_NODE', nodeId: selectedId });
-  };
-
-  const handleMoveToRoot = () => {
-    if (!selectedId || isRootSelected) return;
-    if (parentOfSelected?.id === scene.rootId) return;
-    dispatch({ type: 'SET_PARENT', nodeId: selectedId, parentId: scene.rootId });
-  };
-
-  const handleDuplicate = (includeSubtree: boolean) => {
-    if (!selectedId || isRootSelected) return;
-    dispatch({
-      type: 'DUPLICATE_NODE',
-      nodeId: selectedId,
-      includeSubtree,
-    });
   };
 
   return (
@@ -103,41 +84,17 @@ export function Toolbar() {
           </button>
           <button
             type="button"
-            onClick={handleMoveToRoot}
-            disabled={
-              !selectedId ||
-              isRootSelected ||
-              parentOfSelected?.id === scene.rootId
-            }
-            title="Reparent under root"
+            className="toolbar__ghost"
+            onClick={clearScene}
+            title="Remove all nodes and start with an empty scene"
           >
-            To root
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDuplicate(false)}
-            disabled={!selectedId || isRootSelected}
-            title="Duplicate node only"
-          >
-            Dup
-          </button>
-          <button
-            type="button"
-            onClick={() => handleDuplicate(true)}
-            disabled={!selectedId || isRootSelected}
-            title="Duplicate subtree"
-          >
-            Dup tree
+            Clear Scene
           </button>
         </div>
 
-        <button type="button" className="toolbar__ghost toolbar__tool-reset" onClick={reset}>
-          Reset
-        </button>
-      </div>
-
-      <div className="toolbar__secondary">
-        <SceneLoader open={sceneOpen} onToggle={() => setSceneOpen((v) => !v)} />
+        <div className="toolbar__scene-tools">
+          <SceneLoader />
+        </div>
       </div>
     </header>
   );

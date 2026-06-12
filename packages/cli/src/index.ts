@@ -108,6 +108,7 @@ const DEV_FATAL_PREFLIGHT_LABELS = new Set([
   'dioramai.config.json',
   'Configured paths',
   'Generated scene parses',
+  'Hidden canonical GLB assets',
 ]);
 
 const devFatalItems = (items: DioramaiDoctorItem[]): DioramaiDoctorItem[] =>

@@ -58,6 +58,8 @@ describe('RuntimeScene gizmo attachment', () => {
         'emissiveIntensity',
         'object',
         'userData',
+        'wireframe',
+        'transparent',
       ];
       if (noisy.some((tag) => message.includes(tag))) return;
       originalError(...args);
@@ -94,6 +96,37 @@ describe('RuntimeScene gizmo attachment', () => {
 
     expect(container.querySelector('primitive')).not.toBeNull();
     expect(skeletonClone).toHaveBeenCalled();
+  });
+
+  it('renders a selectable marker for the selected hidden node', () => {
+    const scene = getStarterScene('default');
+    const childId = scene.nodes[scene.rootId]!.children[0]!;
+    const child = scene.nodes[childId]!;
+
+    const { container } = render(
+      <RuntimeScene
+        scene={{
+          ...scene,
+          nodes: {
+            ...scene.nodes,
+            [childId]: {
+              ...child,
+              visible: false,
+              assetRef: { kind: 'uri', uri: '/assets/imports/android.glb' },
+            },
+          },
+        }}
+        selectedId={childId}
+        gizmoMode="translate"
+        onCommand={() => undefined}
+        onSelect={() => undefined}
+      />,
+    );
+
+    expect(container.querySelector('primitive')).toBeNull();
+    expect(container.querySelector('boxGeometry')).not.toBeNull();
+    expect(container.querySelector('meshBasicMaterial')).not.toBeNull();
+    expect(capturedObjects.at(-1)).toBe(container.querySelectorAll('group')[1]);
   });
 
   it('passes the live group instance (not a RefObject) to TransformControls', () => {

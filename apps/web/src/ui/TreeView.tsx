@@ -20,15 +20,18 @@ function TreeRow({ scene, nodeId, depth, selectedId, onSelect }: TreeRowProps) {
   const isRoot = nodeId === scene.rootId;
   const role = node.semantics?.role ?? node.semanticRole;
   const groupId = node.semantics?.groupId ?? node.semanticGroupId;
-  const nodeMeta = role
+  const nodeKindMeta = role
     ? `${role}${groupId ? ` @ ${groupId}` : ''}`
-    : `${node.type}${node.visible ? '' : ' hidden'} - ${node.children.length} child${node.children.length === 1 ? '' : 'ren'}`;
+    : `${node.type} - ${node.children.length} child${node.children.length === 1 ? '' : 'ren'}`;
+  const nodeMeta = [nodeKindMeta, node.visible ? null : 'hidden']
+    .filter((part): part is string => part !== null)
+    .join(' · ');
 
   return (
     <div className="tree-group">
       <button
         type="button"
-        className={`tree-row${isSelected ? ' tree-row--selected' : ''}`}
+        className={`tree-row${isSelected ? ' tree-row--selected' : ''}${node.visible ? '' : ' tree-row--hidden'}`}
         style={{ paddingLeft: 8 + depth * 14 }}
         onClick={() => onSelect(nodeId)}
       >

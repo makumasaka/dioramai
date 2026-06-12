@@ -15,6 +15,7 @@ vi.mock('../bridge/bridgeClient', async (importActual) => ({
 describe('sceneStore — history + command log regression', () => {
   beforeEach(() => {
     useSceneStore.getState().reset();
+    useSceneStore.setState({ bridgeConnected: false, bridgeLastError: null });
   });
 
   it('does not append SET_SELECTION to the command log', () => {
@@ -64,6 +65,43 @@ describe('sceneStore — history + command log regression', () => {
     expect(useSceneStore.getState().commandLog).toHaveLength(0);
     expect(useSceneStore.getState().past).toHaveLength(0);
     expect(useSceneStore.getState().future).toHaveLength(0);
+  });
+
+  it('clearScene replaces the graph with root-only empty scene while preserving history', () => {
+    useSceneStore.getState().dispatch({
+      type: 'UPDATE_TRANSFORM',
+      nodeId: 'default-cube-1',
+      patch: { position: [0, 2, 0] },
+    });
+
+    useSceneStore.getState().clearScene();
+
+    const scene = useSceneStore.getState().scene;
+    expect(Object.keys(scene.nodes)).toHaveLength(1);
+    expect(scene.nodes[scene.rootId]?.type).toBe('root');
+    expect(scene.nodes[scene.rootId]?.children).toHaveLength(0);
+    expect(scene.nodes['default-cube-1']).toBeUndefined();
+    expect(useSceneStore.getState().commandLog).toHaveLength(1);
+    expect(useSceneStore.getState().timelineCommands).toHaveLength(1);
+    expect(useSceneStore.getState().past.length).toBeGreaterThan(0);
+
+    useSceneStore.getState().undo();
+    expect(useSceneStore.getState().scene.nodes['default-cube-1']).toBeDefined();
+  });
+
+  it('clearScene forwards empty scene to bridge when connected', async () => {
+    const { postBridgeLoadScene } = await import('../bridge/bridgeClient');
+    vi.mocked(postBridgeLoadScene).mockClear();
+
+    useSceneStore.setState({ bridgeConnected: true });
+    useSceneStore.getState().clearScene();
+
+    expect(Object.keys(useSceneStore.getState().scene.nodes)).toHaveLength(1);
+    expect(postBridgeLoadScene).toHaveBeenCalledTimes(1);
+    const sentJson = vi.mocked(postBridgeLoadScene).mock.calls[0]?.[0] as string;
+    const parsed = parseSceneJson(sentJson);
+    expect(parsed && Object.keys(parsed.nodes)).toHaveLength(1);
+    expect(parsed?.nodes[parsed.rootId]?.children).toHaveLength(0);
   });
 
   it('coalesces consecutive UPDATE_TRANSFORM for the same node into one past entry', () => {

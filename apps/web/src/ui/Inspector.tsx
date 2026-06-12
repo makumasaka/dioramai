@@ -378,10 +378,28 @@ export function Inspector() {
     .filter((b): b is BehaviorDefinition => Boolean(b));
 
   const currentRole: SemanticRole = semantics?.role ?? node.semanticRole ?? 'unknown';
+  const hiddenAssetUri = !node.visible && node.assetRef?.kind === 'uri'
+    ? node.assetRef.uri
+    : null;
 
   return (
     <aside className="inspector">
       <div className="inspector__header">Inspector</div>
+
+      {hiddenAssetUri ? (
+        <section className="inspector__section inspector__warning">
+          <div className="inspector__section-title">Hidden Asset</div>
+          <p className="inspector__description">
+            This GLB/GLTF node is in the canonical scene but is set to not visible.
+          </p>
+          <div className="inspector__row">
+            <span className="inspector__key">Asset</span>
+            <span className="inspector__value inspector__value--mono" title={hiddenAssetUri}>
+              {hiddenAssetUri}
+            </span>
+          </div>
+        </section>
+      ) : null}
 
       {/* Semantics */}
       <section className="inspector__section">

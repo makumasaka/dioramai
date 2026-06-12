@@ -75,6 +75,22 @@ function ProxyMesh({ isSelected, isHovered }: { isSelected: boolean; isHovered: 
   );
 }
 
+function HiddenNodeMarker() {
+  return (
+    <mesh>
+      <boxGeometry args={[0.9, 0.9, 0.9]} />
+      <meshBasicMaterial color="#fbbf24" wireframe transparent opacity={0.45} />
+    </mesh>
+  );
+}
+
+const subtreeContains = (scene: Scene, nodeId: string, targetId: string): boolean => {
+  if (nodeId === targetId) return true;
+  const node = scene.nodes[nodeId];
+  if (!node) return false;
+  return node.children.some((childId) => subtreeContains(scene, childId, targetId));
+};
+
 function RuntimeNodeInner({
   scene,
   nodeId,
@@ -102,6 +118,11 @@ function RuntimeNodeInner({
 
   const node = scene.nodes[nodeId];
   const isSelected = selectedId === nodeId;
+  const isHidden = node?.visible === false;
+  const shouldRenderHiddenBranch =
+    isHidden &&
+    selectedId !== null &&
+    subtreeContains(scene, nodeId, selectedId);
 
   useLayoutEffect(() => {
     if (!groupObject || !registry) return undefined;
@@ -137,7 +158,7 @@ function RuntimeNodeInner({
     [assetUri, assetUrlResolver],
   );
 
-  if (!node || node.visible === false) return null;
+  if (!node || (isHidden && !shouldRenderHiddenBranch)) return null;
 
   const handleClick = (event: ThreeEvent<MouseEvent>): void => {
     event.stopPropagation();
@@ -157,9 +178,10 @@ function RuntimeNodeInner({
   const hasLight = node.light !== undefined || node.type === 'light';
   const inspectOnly = node.metadata.renderMode === 'gltf-inspect-only';
   const showMesh = node.type === 'mesh' && !hasLight;
-  const showAsset = showMesh && resolvedAssetUri !== undefined;
+  const showHiddenMarker = isHidden && isSelected;
+  const showAsset = !isHidden && showMesh && resolvedAssetUri !== undefined;
   // Inspect-only sub-nodes without an asset are rendered by external code; skip proxy only.
-  const showProxy = showMesh && !showAsset && !inspectOnly;
+  const showProxy = !isHidden && showMesh && !showAsset && !inspectOnly;
 
   return (
     <>
@@ -188,6 +210,7 @@ function RuntimeNodeInner({
             <AssetModel uri={resolvedAssetUri} />
           </Suspense>
         ) : null}
+        {showHiddenMarker ? <HiddenNodeMarker /> : null}
         {showProxy ? <ProxyMesh isHovered={isHovered} isSelected={isSelected} /> : null}
         {children}
       </group>

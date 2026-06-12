@@ -23,6 +23,11 @@ import {
   outOfBandAssetUsageMessage,
   scanOutOfBandAssetUsage,
 } from './outOfBandAssetUsage';
+import {
+  findHiddenCanonicalAssetNodes,
+  hiddenCanonicalAssetNodesFix,
+  hiddenCanonicalAssetNodesMessage,
+} from './canonicalSceneDiagnostics';
 
 export const DEFAULT_BRIDGE_PORT = 7777;
 
@@ -1343,6 +1348,28 @@ export const doctorDioramaiProject = async (
           message: 'No app source files load GLB/GLTF assets outside the generated Dioramai scene.',
         });
 
+    const hiddenCanonicalAssetNodes = findHiddenCanonicalAssetNodes(canonicalScene, {
+      projectRoot,
+      assetDirPath,
+      publicAssetBase,
+      outOfBandAssetUsages,
+    });
+    const hiddenCanonicalAssetConflict = hiddenCanonicalAssetNodes.some((node) =>
+      node.matchedOutOfBandLoader,
+    );
+    add(hiddenCanonicalAssetNodes.length > 0
+      ? {
+          status: hiddenCanonicalAssetConflict ? 'fail' : 'warn',
+          label: 'Hidden canonical GLB assets',
+          message: hiddenCanonicalAssetNodesMessage(hiddenCanonicalAssetNodes),
+          fix: hiddenCanonicalAssetNodesFix,
+        }
+      : {
+          status: 'pass',
+          label: 'Hidden canonical GLB assets',
+          message: 'No canonical GLB/GLTF asset nodes are hidden.',
+        });
+
     const appImport = await appImportsGeneratedScene(projectRoot);
     add(appImport === true
       ? {
@@ -1713,6 +1740,20 @@ export class DioramaiBridgeRuntime {
       publicAssetBase: this.publicUrlBase,
       canonicalScene: scene.ok ? scene.data.scene : null,
     });
+    const hiddenCanonicalAssetNodes = findHiddenCanonicalAssetNodes(scene.ok ? scene.data.scene : null, {
+      projectRoot: this.projectRoot,
+      assetDirPath: this.assetDirPath,
+      publicAssetBase: this.publicUrlBase,
+      outOfBandAssetUsages,
+    });
+    const projectWarnings = [
+      ...(outOfBandAssetUsages.length > 0
+        ? [outOfBandAssetUsageMessage(outOfBandAssetUsages)]
+        : []),
+      ...(hiddenCanonicalAssetNodes.length > 0
+        ? [hiddenCanonicalAssetNodesMessage(hiddenCanonicalAssetNodes)]
+        : []),
+    ];
     return ok({
       bridgeConnected: true,
       projectRoot: this.projectRoot,
@@ -1726,9 +1767,7 @@ export class DioramaiBridgeRuntime {
       publicAssetBase: this.publicUrlBase,
       sceneJsonFile: this.sessionPath,
       sceneJsonFileExists: await exists(this.sessionPath),
-      projectWarnings: outOfBandAssetUsages.length > 0
-        ? [outOfBandAssetUsageMessage(outOfBandAssetUsages)]
-        : [],
+      projectWarnings,
       currentSceneLoaded: scene.ok,
       nodeCount: scene.ok ? Object.keys(scene.data.scene.nodes).length : 0,
       assetCount: scene.ok ? Object.keys(scene.data.scene.assets ?? {}).length : 0,

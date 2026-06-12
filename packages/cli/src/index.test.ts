@@ -3,6 +3,8 @@ import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { afterEach, describe, expect, it } from 'vitest';
 import { initializeDioramaiProject, type StartedBridgeServer } from '@dioramai/local-bridge';
+import { createEmptyScene, applyCommand, type SceneNode } from '@dioramai/core';
+import { exportSceneToR3fSyncModule } from '@dioramai/export-r3f';
 import { runCli } from './index';
 
 const createIo = () => {
@@ -16,6 +18,28 @@ const createIo = () => {
     stdout: () => stdout,
     stderr: () => stderr,
   };
+};
+
+const createHiddenAndroidScene = () => {
+  const scene = createEmptyScene('Hidden Android Test');
+  return applyCommand(scene, {
+    type: 'ADD_NODE',
+    parentId: scene.rootId,
+    node: {
+      id: 'asset-android-node',
+      name: 'Orange Armor Android',
+      type: 'mesh',
+      children: [],
+      transform: {
+        position: [0, 0, 0],
+        rotation: [0, 0, 0],
+        scale: [1, 1, 1],
+      },
+      visible: false,
+      metadata: {},
+      assetRef: { kind: 'uri', uri: '/assets/models/android.glb' },
+    } satisfies SceneNode,
+  });
 };
 
 const fakeStartedBridge = (
@@ -310,6 +334,44 @@ describe('dioramai dev CLI', () => {
     expect(capture.stdout()).toContain('Out-of-band GLB rendering');
     expect(capture.stdout()).toContain('/assets/models/android.glb');
     expect(capture.stdout()).toContain('import_glb_asset');
+  });
+
+  it('fails dev preflight for hidden canonical GLB assets rendered by app code', async () => {
+    await initProject();
+    await writeFile(
+      resolve(projectRoot, 'src/generated/DioramaiScene.generated.tsx'),
+      exportSceneToR3fSyncModule(createHiddenAndroidScene()).code,
+      'utf8',
+    );
+    await writeFile(resolve(projectRoot, 'src/AnimatedAndroid.tsx'), [
+      "import { useGLTF } from '@react-three/drei';",
+      "const ANDROID_URI = '/assets/models/android.glb';",
+      'export function AnimatedAndroid() {',
+      '  useGLTF(ANDROID_URI);',
+      '  return null;',
+      '}',
+      '',
+    ].join('\n'), 'utf8');
+    const capture = createIo();
+    let started = false;
+
+    const exitCode = await runCli(
+      ['dev', '--projectRoot', projectRoot],
+      {},
+      capture.io,
+      {
+        startBridgeServer: async (requestedPort) => {
+          started = true;
+          return fakeStartedBridge(projectRoot, requestedPort ?? 7777, requestedPort ?? 7777);
+        },
+      },
+    );
+
+    expect(exitCode).toBe(1);
+    expect(started).toBe(false);
+    expect(capture.stderr()).toContain('Hidden canonical GLB assets');
+    expect(capture.stderr()).toContain('Orange Armor Android');
+    expect(capture.stderr()).toContain('Keep canonical GLB nodes visible');
   });
 
   it('uses fallback bridge ports and opens the selected shell URL with token params', async () => {

@@ -91,8 +91,8 @@
   cursor: not-allowed;
 }
 
-.toolbar__tool-reset {
-  margin-left: auto;
+.toolbar__tool-reset,
+.toolbar__ghost {
   background: transparent;
   border: 1px solid transparent;
   color: var(--text-muted);
@@ -100,20 +100,20 @@
   border-radius: 6px;
 }
 
-.toolbar__tool-reset:hover {
+.toolbar__tool-reset:hover,
+.toolbar__ghost:hover {
   color: var(--text-strong);
   border-color: var(--border);
   background: rgba(255, 255, 255, 0.04);
 }
 
-.toolbar__secondary {
+.toolbar__scene-tools {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   flex-wrap: wrap;
-  padding-top: 10px;
-  margin-top: 8px;
-  border-top: 1px solid var(--border);
+  margin-left: auto;
+  min-width: 0;
 }
 
 .toolbar__brand {
@@ -213,30 +213,6 @@
   font-size: 11px;
 }
 
-.scene-loader__toggle {
-  background: var(--panel-2);
-  border: 1px solid var(--border);
-  border-radius: 5px;
-  color: var(--text-muted);
-  font-size: 11px;
-  padding: 4px 10px;
-  cursor: pointer;
-  transition: color 120ms ease, border-color 120ms ease;
-  flex-shrink: 0;
-}
-
-.scene-loader__toggle:hover {
-  color: var(--text-strong);
-  border-color: var(--accent);
-}
-
-.scene-loader__body {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
 .command-timeline {
   display: flex;
   flex-direction: column;
@@ -318,6 +294,13 @@
   color: var(--text-muted);
   font-family: var(--mono);
   font-size: 11px;
+}
+
+.code-pane__warnings {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: #fbbf24;
 }
 
 .code-pane__preview {
@@ -852,6 +835,14 @@
   color: var(--text-strong);
 }
 
+.tree-row--hidden {
+  color: var(--text-muted);
+}
+
+.tree-row--hidden .tree-row__meta {
+  color: #fbbf24;
+}
+
 .tree-row__meta {
   font-size: 10.5px;
   color: var(--text-muted);
@@ -909,6 +900,16 @@
 
 .inspector__section--muted {
   background: rgba(0, 0, 0, 0.14);
+}
+
+.inspector__warning {
+  background: rgba(251, 191, 36, 0.08);
+  border-bottom-color: rgba(251, 191, 36, 0.24);
+}
+
+.inspector__warning .inspector__section-title,
+.inspector__warning .inspector__key {
+  color: #fbbf24;
 }
 
 .inspector__section {

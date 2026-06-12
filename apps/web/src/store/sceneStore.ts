@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import {
   applyCommand,
   cloneSceneImmutable,
+  createEmptyScene,
   getStarterScene,
   replayCommands,
   serializeScene,
@@ -106,6 +107,7 @@ export interface SceneState {
   canUndo: () => boolean;
   canRedo: () => boolean;
   reset: () => void;
+  clearScene: () => void;
   exportSceneJson: () => string;
 }
 
@@ -142,15 +144,26 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
         return;
       }
       if (command.type === 'REPLACE_SCENE') {
-        void postBridgeLoadScene(serializeScene(command.scene))
+        const nextScene = applyCommand(state.scene, command);
+        if (nextScene === state.scene) return;
+        set({
+          scene: nextScene,
+          baseScene: cloneScene(nextScene),
+          gizmoMode: 'translate',
+          past: [],
+          future: [],
+          lastTag: null,
+          commandLog: [],
+          timelineCommands: [],
+          timelineError: null,
+        });
+        void postBridgeLoadScene(serializeScene(nextScene))
           .then((result) => {
             if (result.ok) return;
             get().setBridgeStatus(false, result.error.message);
-            get().dispatch(command);
           })
           .catch((error) => {
             get().setBridgeStatus(false, error instanceof Error ? error.message : String(error));
-            get().dispatch(command);
           });
         return;
       }
@@ -377,6 +390,21 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   canRedo: () => get().future.length > 0,
 
   reset: () => get().dispatch({ type: 'REPLACE_SCENE', scene: buildInitialScene() }),
+
+  clearScene: () => {
+    const state = get();
+    const nextScene = createEmptyScene();
+    const nextPast = pushPast(state.past, state.scene);
+    set({
+      scene: nextScene,
+      past: nextPast,
+      future: [],
+      lastTag: null,
+    });
+    if (state.bridgeConnected) {
+      void postBridgeLoadScene(serializeScene(nextScene)).catch(() => undefined);
+    }
+  },
 
   exportSceneJson: () => serializeScene(get().scene),
 }));

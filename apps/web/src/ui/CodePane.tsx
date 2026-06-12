@@ -21,7 +21,10 @@ export function CodePane() {
     () => exportSceneToR3fSyncModule(scene, { includeStudioLights: true }).code,
     [scene],
   );
-  const projectWarning = projectStatus?.projectWarnings[0] ?? projectStatus?.configWarnings[0];
+  const projectWarnings = [
+    ...(projectStatus?.projectWarnings ?? []),
+    ...(projectStatus?.configWarnings ?? []),
+  ];
 
   useEffect(() => {
     if (!bridgeConnected) return;
@@ -43,7 +46,7 @@ export function CodePane() {
   };
 
   const handleSync = (direction: 'toCode' | 'fromCode') => {
-    setStatus(direction === 'toCode' ? 'Writing generated module' : 'Reading scene block');
+    setStatus(direction === 'toCode' ? 'Writing canvas to project code…' : 'Loading scene from project code…');
     const request = direction === 'toCode'
       ? postBridgeWriteSceneToFile()
       : postBridgeReloadSceneFromFile();
@@ -59,7 +62,7 @@ export function CodePane() {
             applyBridgeScene(reloadedScene, { type: 'REPLACE_SCENE', scene: reloadedScene });
           }
         }
-        setStatus('Code sync complete');
+        setStatus(direction === 'toCode' ? 'Canvas written to project code' : 'Project code loaded into canvas');
       })
       .catch((error) => {
         setStatus(error instanceof Error ? error.message : String(error));
@@ -76,28 +79,39 @@ export function CodePane() {
             {projectStatus?.generatedSceneFile ?? 'Bridge generated module'}
           </div>
         </div>
-        <div className="code-pane__actions">
+        <div className="code-pane__actions" aria-label="Scene code sync">
           <button
             type="button"
             onClick={() => handleSync('toCode')}
             disabled={!bridgeConnected}
+            title="Write canvas scene to the generated project file"
           >
-            Sync
+            Canvas → Code
           </button>
           <button
             type="button"
             onClick={() => handleSync('fromCode')}
             disabled={!bridgeConnected}
+            title="Load scene from the generated project file into the canvas"
           >
-            Reload
+            Code → Canvas
           </button>
         </div>
       </div>
       <div className="code-pane__status">
-        {status ??
-          (bridgeConnected
-            ? projectWarning ?? `Bridge connected - ${projectStatus?.assetDirExists ? 'assets ready' : 'asset dir missing'}`
-            : bridgeLastError ?? 'Bridge offline')}
+        {status ? (
+          status
+        ) : bridgeConnected && projectWarnings.length > 0 ? (
+          <div className="code-pane__warnings">
+            {projectWarnings.map((warning) => (
+              <div key={warning}>{warning}</div>
+            ))}
+          </div>
+        ) : bridgeConnected ? (
+          `Bridge connected - ${projectStatus?.assetDirExists ? 'assets ready' : 'asset dir missing'}`
+        ) : (
+          bridgeLastError ?? 'Bridge offline'
+        )}
       </div>
       <pre className="code-pane__preview">{codePreview}</pre>
     </section>

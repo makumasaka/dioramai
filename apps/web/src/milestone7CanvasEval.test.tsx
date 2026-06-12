@@ -155,7 +155,6 @@ describe('Milestone 7 Loop C canvas editing eval', () => {
       '2.5,0.5,0',
     );
 
-    await user.click(screen.getByTitle('Expand scene tools'));
     await user.click(screen.getByRole('button', { name: 'JSON' }));
     const blob = createObjectURL.mock.calls[0]?.[0] as Blob;
     const parsed = parseSceneJson(await blob.text());
