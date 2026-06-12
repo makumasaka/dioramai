@@ -171,7 +171,9 @@ describe('exportSceneToR3fModule', () => {
     };
     const result = exportSceneToR3fModule(scene);
     expect(result.code).toContain("import { useGLTF } from '@react-three/drei';");
+    expect(result.code).toContain("import { SkeletonUtils } from 'three-stdlib';");
     expect(result.code).toContain('function AssetModel');
+    expect(result.code).toContain('SkeletonUtils.clone(gltf.scene)');
     expect(result.code).toContain('assetUri="/assets/generated/chair.glb"');
     expect(result.diagnostics.some((d) => d.code === 'unsafe_asset_uri')).toBe(false);
   });

@@ -32,7 +32,8 @@ const renderSyncModule = (
   `${DIORAMAI_GENERATED_MARKER}\n` +
   `/* This file is owned by Dioramai. Edit dioramaiScene for MVP code -> runtime sync. */\n` +
   `import { Suspense, useMemo } from 'react';\n` +
-  `import { useGLTF } from '@react-three/drei';\n\n` +
+  `import { useGLTF } from '@react-three/drei';\n` +
+  `import { SkeletonUtils } from 'three-stdlib';\n\n` +
   `type Vec3 = readonly [number, number, number];\n` +
   `type DioramaiNode = {\n` +
   `  id: string;\n` +
@@ -66,7 +67,7 @@ const renderSyncModule = (
   `}\n\n` +
   `function AssetModel({ uri }: { uri: string }) {\n` +
   `  const gltf = useGLTF(uri);\n` +
-  `  const object = useMemo(() => gltf.scene.clone(true), [gltf.scene]);\n` +
+  `  const object = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);\n` +
   `  return <primitive object={object} />;\n` +
   `}\n\n` +
   `function ProxyMesh() {\n` +

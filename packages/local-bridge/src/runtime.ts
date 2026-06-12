@@ -731,6 +731,7 @@ const vitePackageJson = (projectRoot: string): string => jsonFile({
     react: '^19.2.5',
     'react-dom': '^19.2.5',
     three: '^0.184.0',
+    'three-stdlib': '^2.36.1',
   },
   devDependencies: {
     '@types/react': '^19.2.14',

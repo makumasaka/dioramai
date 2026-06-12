@@ -11,7 +11,7 @@ import {
 } from 'react';
 import { TransformControls, useGLTF } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
-import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
+import { SkeletonUtils, type TransformControls as TransformControlsImpl } from 'three-stdlib';
 import type { Group, Object3D } from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { useSceneStore } from '../store/sceneStore';
@@ -46,7 +46,7 @@ const resolveRenderableAssetUri = (uri: string | undefined): string | undefined 
 
 function AssetModel({ uri }: { uri: string }) {
   const gltf = useGLTF(uri);
-  const object = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
+  const object = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
   return <primitive object={object} />;
 }
 

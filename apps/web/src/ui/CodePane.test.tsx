@@ -18,6 +18,7 @@ vi.mock('../bridge/bridgeClient', async () => ({
 
 describe('CodePane sync controls', () => {
   beforeEach(() => {
+    useSceneStore.getState().setBridgeStatus(false, null);
     useSceneStore.getState().reset();
     useSceneStore.getState().setBridgeStatus(true, null);
     vi.clearAllMocks();

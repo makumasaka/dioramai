@@ -107,17 +107,24 @@ const safeWrapperMapFromScene = (
 };
 
 const emitImports = (needsState: boolean, includeAssetLoader: boolean): string => {
-  const reactImports = needsState
-    ? `import { useState } from 'react';\nimport type { ReactNode } from 'react';\n`
+  const reactHooks = [
+    needsState ? 'useState' : null,
+    includeAssetLoader ? 'useMemo' : null,
+  ].filter((hook): hook is string => hook !== null);
+  const reactImports = reactHooks.length > 0
+    ? `import { ${reactHooks.join(', ')} } from 'react';\nimport type { ReactNode } from 'react';\n`
     : `import type { ReactNode } from 'react';\n`;
-  const dreiImport = includeAssetLoader ? `import { useGLTF } from '@react-three/drei';\n` : '';
-  return `${reactImports}import type { ThreeElements } from '@react-three/fiber';\n${dreiImport}\n`;
+  const assetImports = includeAssetLoader
+    ? `import { useGLTF } from '@react-three/drei';\nimport { SkeletonUtils } from 'three-stdlib';\n`
+    : '';
+  return `${reactImports}import type { ThreeElements } from '@react-three/fiber';\n${assetImports}\n`;
 };
 
 const emitAssetModel = (): string =>
   `function AssetModel({ uri }: { uri: string }) {\n` +
   `  const gltf = useGLTF(uri);\n` +
-  `  return <primitive object={gltf.scene.clone()} />;\n` +
+  `  const object = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);\n` +
+  `  return <primitive object={object} />;\n` +
   `}\n\n`;
 
 const emitSemanticNode = (): string =>

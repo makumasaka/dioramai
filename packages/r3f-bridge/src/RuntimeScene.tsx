@@ -12,7 +12,7 @@ import { TransformControls, useGLTF } from '@react-three/drei';
 import type { ThreeEvent } from '@react-three/fiber';
 import type { Command, Scene } from '@dioramai/core';
 import type { Group } from 'three';
-import type { TransformControls as TransformControlsImpl } from 'three-stdlib';
+import { SkeletonUtils, type TransformControls as TransformControlsImpl } from 'three-stdlib';
 import {
   commandFromObject3DTransform,
 } from './transformCommand';
@@ -56,7 +56,7 @@ export const isRenderableAssetUri = (uri: string | undefined): string | undefine
 
 function AssetModel({ uri }: { uri: string }) {
   const gltf = useGLTF(uri);
-  const object = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
+  const object = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
   return <primitive object={object} />;
 }
 

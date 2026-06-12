@@ -8,6 +8,9 @@ import { RuntimeScene } from '@dioramai/r3f-bridge';
 // RefObject is a regression: drei reads `ref.current` once and never
 // re-attaches, leaving the gizmo bound to a stale, detached group.
 const capturedObjects: unknown[] = [];
+const skeletonClone = vi.hoisted(() =>
+  vi.fn((object: unknown) => ({ type: 'skeleton-safe-clone', source: object })),
+);
 
 vi.mock('@react-three/drei', async () => {
   const React = await import('react');
@@ -28,12 +31,19 @@ vi.mock('@react-three/drei', async () => {
   };
 });
 
+vi.mock('three-stdlib', () => ({
+  SkeletonUtils: {
+    clone: skeletonClone,
+  },
+}));
+
 describe('RuntimeScene gizmo attachment', () => {
   let consoleError: ReturnType<typeof vi.spyOn>;
   let originalError: typeof console.error;
 
   beforeEach(() => {
     capturedObjects.length = 0;
+    skeletonClone.mockClear();
     originalError = console.error;
     consoleError = vi.spyOn(console, 'error').mockImplementation((...args) => {
       const message = args.map((arg) => String(arg)).join(' ');
@@ -56,6 +66,34 @@ describe('RuntimeScene gizmo attachment', () => {
 
   afterEach(() => {
     consoleError.mockRestore();
+  });
+
+  it('uses a skeleton-safe clone for GLB asset nodes', () => {
+    const scene = getStarterScene('default');
+    const childId = scene.nodes[scene.rootId]!.children[0]!;
+    const child = scene.nodes[childId]!;
+
+    const { container } = render(
+      <RuntimeScene
+        scene={{
+          ...scene,
+          nodes: {
+            ...scene.nodes,
+            [childId]: {
+              ...child,
+              assetRef: { kind: 'uri', uri: '/assets/imports/android.glb' },
+            },
+          },
+        }}
+        selectedId={childId}
+        gizmoMode="translate"
+        onCommand={() => undefined}
+        onSelect={() => undefined}
+      />,
+    );
+
+    expect(container.querySelector('primitive')).not.toBeNull();
+    expect(skeletonClone).toHaveBeenCalled();
   });
 
   it('passes the live group instance (not a RefObject) to TransformControls', () => {

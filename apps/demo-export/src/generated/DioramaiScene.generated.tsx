@@ -3,6 +3,7 @@
 /* This file is owned by Dioramai. Edit dioramaiScene for MVP code -> runtime sync. */
 import { Suspense, useMemo } from 'react';
 import { useGLTF } from '@react-three/drei';
+import { SkeletonUtils } from 'three-stdlib';
 
 type Vec3 = readonly [number, number, number];
 type DioramaiNode = {
@@ -158,7 +159,7 @@ function isRenderableAssetUri(uri: string | undefined): string | undefined {
 
 function AssetModel({ uri }: { uri: string }) {
   const gltf = useGLTF(uri);
-  const object = useMemo(() => gltf.scene.clone(true), [gltf.scene]);
+  const object = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
   return <primitive object={object} />;
 }
 

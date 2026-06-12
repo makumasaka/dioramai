@@ -1250,7 +1250,7 @@ export function InteractiveShowroom() {
           scale={[8, 3.2, 0.12]}
           renderMesh
         />
-        {/* product_01 - Product 01 | role=product | group=display_area | traits=clickable,hoverable,displayable,focusable | behavior=click_select,hover_highlight,show_info,focus_camera */}
+        {/* product_01 - Product 01 | role=product | group=display_area | traits=clickable,hoverable,displayable,focusable | behaviors=click_select,hover_highlight,show_info,focus_camera */}
         <Product
           sourceId="product_01"
           name="Product 01"
@@ -1268,7 +1268,7 @@ export function InteractiveShowroom() {
         {selectedId === 'product_01' ? (
           <>{/* TODO: render info panel for Product information: Interactive showroom item generated from structured scene metadata.. */}</>
         ) : null}
-        {/* bench - Bench | role=seating | group=seating_area | traits=seatable,focusable | behavior=focus_camera,anchor_point */}
+        {/* bench - Bench | role=seating | group=seating_area | traits=seatable,focusable | behaviors=focus_camera,anchor_point */}
         {/* TODO: anchor_point is scaffolded as a developer hook; no runtime behavior is generated. */}
         <SeatingElement
           sourceId="bench"
@@ -1279,7 +1279,7 @@ export function InteractiveShowroom() {
           renderMesh
           onSelect={() => handleFocusCamera('bench')}
         />
-        {/* display_table - Display Table | role=display | group=display_area | traits=displayable | behavior=show_info */}
+        {/* display_table - Display Table | role=display | group=display_area | traits=displayable | behaviors=show_info */}
         <DisplaySurface
           sourceId="display_table"
           name="Display Table"
@@ -1291,7 +1291,7 @@ export function InteractiveShowroom() {
         {selectedId === 'display_table' ? (
           <>{/* TODO: render info panel for Display Table. */}</>
         ) : null}
-        {/* product_03 - Product 03 | role=product | group=display_area | traits=clickable,hoverable,displayable,focusable | behavior=click_select,hover_highlight,show_info,focus_camera */}
+        {/* product_03 - Product 03 | role=product | group=display_area | traits=clickable,hoverable,displayable,focusable | behaviors=click_select,hover_highlight,show_info,focus_camera */}
         <Product
           sourceId="product_03"
           name="Product 03"
@@ -1319,7 +1319,7 @@ export function InteractiveShowroom() {
           lightKind="ambient"
           lightIntensity={0.35}
         />
-        {/* chair - Chair | role=seating | group=seating_area | traits=seatable,focusable | behavior=focus_camera,anchor_point */}
+        {/* chair - Chair | role=seating | group=seating_area | traits=seatable,focusable | behaviors=focus_camera,anchor_point */}
         {/* TODO: anchor_point is scaffolded as a developer hook; no runtime behavior is generated. */}
         <SeatingElement
           sourceId="chair"
@@ -1330,7 +1330,7 @@ export function InteractiveShowroom() {
           renderMesh
           onSelect={() => handleFocusCamera('chair')}
         />
-        {/* display_plinth - Display Plinth | role=display | group=display_area | traits=displayable | behavior=show_info */}
+        {/* display_plinth - Display Plinth | role=display | group=display_area | traits=displayable | behaviors=show_info */}
         <DisplaySurface
           sourceId="display_plinth"
           name="Display Plinth"
@@ -1342,7 +1342,7 @@ export function InteractiveShowroom() {
         {selectedId === 'display_plinth' ? (
           <>{/* TODO: render info panel for Display Plinth. */}</>
         ) : null}
-        {/* product_02 - Product 02 | role=product | group=display_area | traits=clickable,hoverable,displayable,focusable | behavior=click_select,hover_highlight,show_info,focus_camera */}
+        {/* product_02 - Product 02 | role=product | group=display_area | traits=clickable,hoverable,displayable,focusable | behaviors=click_select,hover_highlight,show_info,focus_camera */}
         <Product
           sourceId="product_02"
           name="Product 02"

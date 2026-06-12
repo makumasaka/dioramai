@@ -5,6 +5,10 @@ import { getStarterScene } from '@dioramai/core';
 import { useSceneStore } from '../store/sceneStore';
 import { NodeMesh } from './NodeMesh';
 
+const skeletonClone = vi.hoisted(() =>
+  vi.fn((object: unknown) => ({ type: 'skeleton-safe-clone', source: object })),
+);
+
 interface TransformControlsTestRef {
   addEventListener: (
     name: 'dragging-changed',
@@ -55,6 +59,12 @@ vi.mock('@react-three/drei', async () => {
   };
 });
 
+vi.mock('three-stdlib', () => ({
+  SkeletonUtils: {
+    clone: skeletonClone,
+  },
+}));
+
 vi.mock('./object3dTransform', () => ({
   transformPatchFromObject3D: () => ({ position: [6, 7, 8] }),
 }));
@@ -91,6 +101,7 @@ describe('NodeMesh command adapter', () => {
       originalError(...args);
     });
     useSceneStore.getState().reset();
+    skeletonClone.mockClear();
   });
 
   afterEach(() => {
@@ -188,6 +199,7 @@ describe('NodeMesh command adapter', () => {
 
     expect(container.querySelector('primitive')).not.toBeNull();
     expect(container.querySelector('boxGeometry')).toBeNull();
+    expect(skeletonClone).toHaveBeenCalledTimes(1);
   });
 
   it('keeps the proxy mesh for unsafe asset refs', () => {
