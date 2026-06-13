@@ -40,7 +40,7 @@ export type GltfHierarchyPlan = {
 
 const GLB_MAGIC = 0x46546c67;
 const GLB_JSON_CHUNK = 0x4e4f534a;
-const DEFAULT_MAX_HIERARCHY_NODES = 250;
+const DEFAULT_MAX_HIERARCHY_NODES = 1000;
 
 const isFiniteNumber = (value: unknown): value is number =>
   typeof value === 'number' && Number.isFinite(value);

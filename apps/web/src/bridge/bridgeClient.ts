@@ -213,7 +213,7 @@ export const postBridgeImportGlbAsset = async (
 ): Promise<BridgeResult<ImportGlbAssetResult>> => {
   const params = new URLSearchParams({
     fileName: file.name,
-    importMode: options.importMode ?? 'single',
+    importMode: options.importMode ?? 'shallow',
   });
   if (options.semanticRole) params.set('semanticRole', options.semanticRole);
   if (options.parentId) params.set('parentId', options.parentId);
@@ -242,7 +242,7 @@ export const postBridgeRegisterGlbAssetPath = async (
 ): Promise<BridgeResult<ImportGlbAssetResult>> =>
   postJson('/import-glb-asset-json', {
     path,
-    importMode: options.importMode ?? 'single',
+    importMode: options.importMode ?? 'shallow',
     ...(options.semanticRole ? { semanticRole: options.semanticRole } : {}),
     ...(options.parentId ? { parentId: options.parentId } : {}),
     ...(options.name ? { name: options.name } : {}),

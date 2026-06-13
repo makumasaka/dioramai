@@ -198,6 +198,8 @@ const semanticRoleFromValue = (value: unknown): SemanticRole | undefined =>
     ? value as SemanticRole
     : undefined;
 
+const DEFAULT_IMPORT_MODE: NonNullable<ImportAssetInput['importMode']> = 'shallow';
+
 const importModeFromValue = (value: unknown): ImportAssetInput['importMode'] | undefined =>
   value === 'single' || value === 'shallow' ? value : undefined;
 
@@ -1961,7 +1963,7 @@ export class DioramaiBridgeRuntime {
     const scene = this.getSceneResult();
     if (!scene.ok) return scene;
 
-    const mode = input.importMode ?? 'single';
+    const mode = input.importMode ?? DEFAULT_IMPORT_MODE;
     const sourcePath = await this.prepareImportAssetFile(input.source);
     if (!sourcePath.ok) return sourcePath;
 
@@ -2036,7 +2038,7 @@ export class DioramaiBridgeRuntime {
     }
     return this.importAsset({
       source: { kind: 'workspacePath', path: workspaceRelativePath },
-      importMode: importModeFromValue(input.importMode) ?? 'single',
+      importMode: importModeFromValue(input.importMode) ?? DEFAULT_IMPORT_MODE,
       ...(typeof input.name === 'string' ? { name: input.name } : {}),
       ...(semanticRoleFromValue(input.semanticRole) !== undefined
         ? { semanticRole: semanticRoleFromValue(input.semanticRole) }
@@ -2298,7 +2300,7 @@ export const startDioramaiBridgeServer = async (
         }
         const result = await runtime.importAsset({
           source: { kind: 'uploadedFile', name: fileName, data },
-          importMode: importModeFromValue(rawImportMode) ?? 'single',
+          importMode: importModeFromValue(rawImportMode) ?? DEFAULT_IMPORT_MODE,
           ...(semanticRoleFromValue(semanticRole) !== undefined
             ? { semanticRole: semanticRoleFromValue(semanticRole) }
             : {}),

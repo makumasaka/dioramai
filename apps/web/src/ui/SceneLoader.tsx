@@ -37,7 +37,7 @@ export function SceneLoader() {
     e.target.value = '';
     if (!file) return;
     setStatus('Copying GLB into project...');
-    void postBridgeImportGlbAsset(file, { importMode: 'single' })
+    void postBridgeImportGlbAsset(file)
       .then((result) => {
         if (result.ok) {
           applyBridgeScene(result.data.scene);
@@ -63,7 +63,7 @@ export function SceneLoader() {
       return;
     }
     setStatus('Registering GLB');
-    void postBridgeRegisterGlbAssetPath(path, { importMode: 'single' })
+    void postBridgeRegisterGlbAssetPath(path)
       .then((result) => {
         if (result.ok) {
           applyBridgeScene(result.data.scene);

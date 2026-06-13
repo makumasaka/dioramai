@@ -371,7 +371,7 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
     expect(result.data.scene.assets?.['asset-bridge-import-test']?.source).toBe('manual');
   });
 
-  it('registers a project GLB as a single placed asset by default', async () => {
+  it('registers a project GLB with glTF hierarchy by default', async () => {
     const runtime = new DioramaiBridgeRuntime(createEmptyScene('Import Test'), {
       projectRoot,
     });
@@ -379,6 +379,43 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
     const result = await runtime.callTool('register_asset', {
       path: sourceRel,
       name: 'Fixture Chair',
+      dryRun: true,
+    });
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.data.commands.map((command: Command) => command.type)).toEqual([
+      'REGISTER_ASSET',
+      'ADD_NODE',
+      'ADD_NODE',
+      'ADD_NODE',
+    ]);
+    expect(result.data.importedNodeIds).toEqual([
+      'asset-bridge-import-test-node',
+      'asset-bridge-import-test-node-gltf-0-fixture-root',
+      'asset-bridge-import-test-node-gltf-1-fixture-mesh',
+    ]);
+    expect(result.data.hierarchySummary?.nodeCount).toBe(2);
+    const renderableNodes = (Object.values(result.data.scene.nodes) as SceneNode[]).filter((node) =>
+      node.assetRef?.kind === 'uri' &&
+      node.metadata.renderMode !== 'gltf-inspect-only',
+    );
+    expect(renderableNodes).toHaveLength(1);
+    expect(renderableNodes[0]?.assetRef).toEqual({
+      kind: 'uri',
+      uri: '/assets/models/bridge-import-test.glb',
+    });
+  });
+
+  it('registers a project GLB as a single placed asset when importMode is single', async () => {
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('Import Test'), {
+      projectRoot,
+    });
+
+    const result = await runtime.callTool('register_asset', {
+      path: sourceRel,
+      name: 'Fixture Chair',
+      importMode: 'single',
       dryRun: true,
     });
 
