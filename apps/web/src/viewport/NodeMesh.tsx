@@ -16,6 +16,12 @@ import type { Group, Object3D } from 'three';
 import { useShallow } from 'zustand/react/shallow';
 import { useSceneStore } from '../store/sceneStore';
 import { torusArgsFromMetadata } from '@dioramai/export-r3f';
+import {
+  applyGltfNodeProjections,
+  collectGltfNodeProjections,
+  dioramaiIdForObject,
+  type GltfNodeProjection,
+} from '@dioramai/r3f-bridge';
 import { transformPatchFromObject3D } from './object3dTransform';
 
 interface NodeMeshProps {
@@ -44,10 +50,29 @@ const resolveRenderableAssetUri = (uri: string | undefined): string | undefined 
   return undefined;
 };
 
-function AssetModel({ uri }: { uri: string }) {
+function AssetModel({
+  uri,
+  projections,
+  onSelectNode,
+}: {
+  uri: string;
+  projections: readonly GltfNodeProjection[];
+  onSelectNode: (nodeId: string) => void;
+}) {
   const gltf = useGLTF(uri);
   const object = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
-  return <primitive object={object} />;
+  useLayoutEffect(() => {
+    applyGltfNodeProjections(object, projections);
+  }, [object, projections]);
+
+  const handleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
+    const nodeId = dioramaiIdForObject(event.object);
+    if (nodeId === undefined) return;
+    event.stopPropagation();
+    onSelectNode(nodeId);
+  }, [onSelectNode]);
+
+  return <primitive object={object} onClick={handleClick} />;
 }
 
 function ProxyMesh({
@@ -91,7 +116,7 @@ function NodeMeshInner({ nodeId, children }: NodeMeshProps) {
   const tcRef = useRef<TransformControlsImpl | null>(null);
   const [isHovered, setIsHovered] = useState(false);
 
-  const { node, hasHoverHighlight, isSelected, gizmoMode, dispatch, select } = useSceneStore(
+  const { scene, node, hasHoverHighlight, isSelected, gizmoMode, dispatch, select } = useSceneStore(
     useShallow((s) => {
       const self = s.scene.nodes[nodeId];
       const behaviorRefs = self?.behaviorRefs ?? [];
@@ -100,6 +125,7 @@ function NodeMeshInner({ nodeId, children }: NodeMeshProps) {
       );
       const isSel = s.scene.selection === nodeId;
       return {
+        scene: s.scene,
         node: self,
         hasHoverHighlight: Boolean(self?.behaviors?.hoverHighlight) || hasHover,
         isSelected: isSel,
@@ -145,6 +171,10 @@ function NodeMeshInner({ nodeId, children }: NodeMeshProps) {
 
   const rawAssetUri = node?.assetRef?.kind === 'uri' ? node.assetRef.uri : undefined;
   const assetUri = useMemo(() => resolveRenderableAssetUri(rawAssetUri), [rawAssetUri]);
+  const gltfNodeProjections = useMemo(
+    () => assetUri !== undefined ? collectGltfNodeProjections(scene, nodeId) : [],
+    [assetUri, nodeId, scene],
+  );
 
   const torusProxyArgs = useMemo((): [number, number, number, number] | undefined => {
     if (!node || node.metadata.dioramaiProxyMesh !== 'torus') return undefined;
@@ -199,7 +229,11 @@ function NodeMeshInner({ nodeId, children }: NodeMeshProps) {
           <Suspense
             fallback={<ProxyMesh color={color} isHovered={isHovered} isSelected={isSelected} />}
           >
-            <AssetModel uri={assetUri} />
+            <AssetModel
+              uri={assetUri}
+              projections={gltfNodeProjections}
+              onSelectNode={select}
+            />
           </Suspense>
         ) : null}
         {showProxy ? (

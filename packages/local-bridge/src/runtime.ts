@@ -25,8 +25,11 @@ import {
 } from './outOfBandAssetUsage';
 import {
   findHiddenCanonicalAssetNodes,
+  findOpaqueCanonicalAssetNodes,
   hiddenCanonicalAssetNodesFix,
   hiddenCanonicalAssetNodesMessage,
+  opaqueCanonicalAssetNodesFix,
+  opaqueCanonicalAssetNodesMessage,
 } from './canonicalSceneDiagnostics';
 
 export const DEFAULT_BRIDGE_PORT = 7777;
@@ -90,7 +93,7 @@ export type ImportAssetSource =
 
 export type ImportAssetInput = {
   source: ImportAssetSource;
-  importMode?: 'single' | 'shallow';
+  importMode?: 'single' | 'shallow' | 'hierarchy';
   name?: string;
   semanticRole?: SemanticRole;
   parentId?: string;
@@ -198,10 +201,13 @@ const semanticRoleFromValue = (value: unknown): SemanticRole | undefined =>
     ? value as SemanticRole
     : undefined;
 
-const DEFAULT_IMPORT_MODE: NonNullable<ImportAssetInput['importMode']> = 'shallow';
+const DEFAULT_IMPORT_MODE: NonNullable<ImportAssetInput['importMode']> = 'hierarchy';
 
 const importModeFromValue = (value: unknown): ImportAssetInput['importMode'] | undefined =>
-  value === 'single' || value === 'shallow' ? value : undefined;
+  value === 'single' || value === 'shallow' || value === 'hierarchy' ? value : undefined;
+
+const importModeIncludesHierarchy = (mode: ImportAssetInput['importMode']): boolean =>
+  mode === 'hierarchy' || mode === 'shallow';
 
 const isCommand = (value: unknown): value is Command =>
   isRecord(value) && typeof value.type === 'string';
@@ -882,8 +888,10 @@ The local bridge file-watcher reads ONLY this block. Code outside it — imports
 
 Register a GLB asset:
 \`\`\`
-import_glb_asset({ "workspaceRelativePath": "public/assets/models/your-model.glb" })
+import_glb_asset({ "workspaceRelativePath": "public/assets/models/your-model.glb", "importMode": "hierarchy" })
 \`\`\`
+
+The default import mode is \`hierarchy\`: the asset node stays renderable, and Dioramai also creates stable child nodes for the GLB's internal glTF nodes, meshes, skin joints, and bones. Use \`single\` only when you intentionally want an opaque one-node GLB.
 
 Tag a node with semantic role and behaviors:
 \`\`\`
@@ -928,6 +936,8 @@ Edit only the JSON between the two markers in \`DioramaiScene.generated.tsx\`.
   "metadata": {}
 }
 \`\`\`
+
+Manual single-node edits do not expose GLB internals in the Dioramai outline. Prefer \`import_glb_asset\` so the bridge can inspect the file and add the canonical child hierarchy.
 
 3. Add \`"your-model-node"\` to the root node's \`"children"\` array (usually \`"default-root"\`).
 
@@ -1372,6 +1382,24 @@ export const doctorDioramaiProject = async (
           message: 'No canonical GLB/GLTF asset nodes are hidden.',
         });
 
+    const opaqueCanonicalAssetNodes = findOpaqueCanonicalAssetNodes(canonicalScene, {
+      projectRoot,
+      assetDirPath,
+      publicAssetBase,
+    });
+    add(opaqueCanonicalAssetNodes.length > 0
+      ? {
+          status: 'warn',
+          label: 'Opaque GLB hierarchy',
+          message: opaqueCanonicalAssetNodesMessage(opaqueCanonicalAssetNodes),
+          fix: opaqueCanonicalAssetNodesFix,
+        }
+      : {
+          status: 'pass',
+          label: 'Opaque GLB hierarchy',
+          message: 'No canonical GLB/GLTF asset nodes are missing imported hierarchy children.',
+        });
+
     const appImport = await appImportsGeneratedScene(projectRoot);
     add(appImport === true
       ? {
@@ -1748,12 +1776,20 @@ export class DioramaiBridgeRuntime {
       publicAssetBase: this.publicUrlBase,
       outOfBandAssetUsages,
     });
+    const opaqueCanonicalAssetNodes = findOpaqueCanonicalAssetNodes(scene.ok ? scene.data.scene : null, {
+      projectRoot: this.projectRoot,
+      assetDirPath: this.assetDirPath,
+      publicAssetBase: this.publicUrlBase,
+    });
     const projectWarnings = [
       ...(outOfBandAssetUsages.length > 0
         ? [outOfBandAssetUsageMessage(outOfBandAssetUsages)]
         : []),
       ...(hiddenCanonicalAssetNodes.length > 0
         ? [hiddenCanonicalAssetNodesMessage(hiddenCanonicalAssetNodes)]
+        : []),
+      ...(opaqueCanonicalAssetNodes.length > 0
+        ? [opaqueCanonicalAssetNodesMessage(opaqueCanonicalAssetNodes)]
         : []),
     ];
     return ok({
@@ -1988,7 +2024,7 @@ export class DioramaiBridgeRuntime {
       parentId: input.parentId ?? scene.data.scene.rootId,
       nodeId,
       nodeName: input.name ?? `${sanitizeStem(slug)} Product`,
-      includeHierarchy: mode === 'shallow',
+      includeHierarchy: importModeIncludesHierarchy(mode),
       sourceFilePath: sourcePath.data.localPath,
     });
 
@@ -2025,7 +2061,7 @@ export class DioramaiBridgeRuntime {
       return fail('VALIDATION_ERROR', 'import_glb_asset requires { path } or { workspaceRelativePath }.');
     }
     if (input.importMode !== undefined && importModeFromValue(input.importMode) === undefined) {
-      return fail('VALIDATION_ERROR', 'importMode must be "single" or "shallow".');
+      return fail('VALIDATION_ERROR', 'importMode must be "hierarchy", "shallow", or "single".');
     }
     if (input.semanticRole !== undefined && semanticRoleFromValue(input.semanticRole) === undefined) {
       return fail('VALIDATION_ERROR', 'semanticRole is not a supported Dioramai semantic role.');
@@ -2291,7 +2327,7 @@ export const startDioramaiBridgeServer = async (
         const rawImportMode = url.searchParams.get('importMode');
         const semanticRole = url.searchParams.get('semanticRole');
         if (rawImportMode !== null && importModeFromValue(rawImportMode) === undefined) {
-          sendJson(400, fail('VALIDATION_ERROR', 'importMode must be "single" or "shallow".'));
+          sendJson(400, fail('VALIDATION_ERROR', 'importMode must be "hierarchy", "shallow", or "single".'));
           return;
         }
         if (semanticRole !== null && semanticRoleFromValue(semanticRole) === undefined) {

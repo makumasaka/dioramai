@@ -10,6 +10,13 @@ export type HiddenCanonicalAssetNode = {
   matchedOutOfBandLoader: boolean;
 };
 
+export type OpaqueCanonicalAssetNode = {
+  nodeId: string;
+  nodeName: string;
+  assetUri: string;
+  comparableUri: string;
+};
+
 const normalizeRelativePath = (value: string): string => value.replace(/\\/g, '/');
 
 const summarizeList = (values: string[], max = 3): string => {
@@ -72,3 +79,70 @@ export const hiddenCanonicalAssetNodesMessage = (
 
 export const hiddenCanonicalAssetNodesFix =
   'Keep canonical GLB nodes visible and bind animation/playback logic to scene node IDs; remove duplicate app-side useGLTF loaders instead of hiding the scene node.';
+
+const hasImportedGltfDescendant = (
+  scene: Scene,
+  nodeId: string,
+  assetId: unknown,
+): boolean => {
+  const node = scene.nodes[nodeId];
+  if (!node) return false;
+  for (const childId of node.children) {
+    const child = scene.nodes[childId];
+    if (!child) continue;
+    const isGltfInspectNode =
+      child.metadata.renderMode === 'gltf-inspect-only' &&
+      child.metadata.source === 'gltf' &&
+      (assetId === undefined || child.metadata.assetId === assetId);
+    if (isGltfInspectNode || hasImportedGltfDescendant(scene, childId, assetId)) {
+      return true;
+    }
+  }
+  return false;
+};
+
+export const findOpaqueCanonicalAssetNodes = (
+  scene: Scene | null,
+  options: {
+    projectRoot: string;
+    assetDirPath: string;
+    publicAssetBase: string;
+  },
+): OpaqueCanonicalAssetNode[] => {
+  if (scene === null) return [];
+  const assetDirRelativePath = normalizeRelativePath(relative(options.projectRoot, options.assetDirPath));
+
+  return Object.values(scene.nodes)
+    .filter((node) =>
+      node.visible !== false &&
+      node.assetRef?.kind === 'uri' &&
+      isGltfAssetUri(node.assetRef.uri) &&
+      !hasImportedGltfDescendant(scene, node.id, node.metadata.assetId),
+    )
+    .map((node) => {
+      const assetUri = node.assetRef?.kind === 'uri' ? node.assetRef.uri : '';
+      const comparableUri = comparableAssetUri(
+        assetUri,
+        options.publicAssetBase,
+        assetDirRelativePath,
+      );
+      return {
+        nodeId: node.id,
+        nodeName: node.name,
+        assetUri,
+        comparableUri,
+      };
+    });
+};
+
+export const opaqueCanonicalAssetNodesMessage = (
+  nodes: OpaqueCanonicalAssetNode[],
+): string => {
+  const nodeSummary = summarizeList(
+    nodes.map((node) => `${node.nodeName} (${node.comparableUri})`),
+  );
+  return `Canonical GLB/GLTF asset nodes have no imported internal hierarchy: ${nodeSummary}. They render as opaque single nodes, so the outline cannot expose meshes, bones, or joints for editor/MCP operations.`;
+};
+
+export const opaqueCanonicalAssetNodesFix =
+  'Re-import the asset with import_glb_asset using importMode "hierarchy" (the default) so Dioramai creates stable glTF child nodes.';

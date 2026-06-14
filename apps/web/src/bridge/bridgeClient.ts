@@ -206,14 +206,14 @@ export const postBridgeReloadSceneFromFile = async (): Promise<BridgeResult<unkn
 export const postBridgeImportGlbAsset = async (
   file: File,
   options: {
-    importMode?: 'single' | 'shallow';
+    importMode?: 'single' | 'shallow' | 'hierarchy';
     semanticRole?: string;
     parentId?: string;
   } = {},
 ): Promise<BridgeResult<ImportGlbAssetResult>> => {
   const params = new URLSearchParams({
     fileName: file.name,
-    importMode: options.importMode ?? 'shallow',
+    importMode: options.importMode ?? 'hierarchy',
   });
   if (options.semanticRole) params.set('semanticRole', options.semanticRole);
   if (options.parentId) params.set('parentId', options.parentId);
@@ -234,7 +234,7 @@ export const postBridgeImportGlbAsset = async (
 export const postBridgeRegisterGlbAssetPath = async (
   path: string,
   options: {
-    importMode?: 'single' | 'shallow';
+    importMode?: 'single' | 'shallow' | 'hierarchy';
     semanticRole?: string;
     parentId?: string;
     name?: string;
@@ -242,7 +242,7 @@ export const postBridgeRegisterGlbAssetPath = async (
 ): Promise<BridgeResult<ImportGlbAssetResult>> =>
   postJson('/import-glb-asset-json', {
     path,
-    importMode: options.importMode ?? 'shallow',
+    importMode: options.importMode ?? 'hierarchy',
     ...(options.semanticRole ? { semanticRole: options.semanticRole } : {}),
     ...(options.parentId ? { parentId: options.parentId } : {}),
     ...(options.name ? { name: options.name } : {}),

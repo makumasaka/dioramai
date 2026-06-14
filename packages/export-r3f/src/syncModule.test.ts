@@ -76,8 +76,11 @@ describe('R3F sync module export', () => {
 
     expect(out).toContain("import { useGLTF } from '@react-three/drei';");
     expect(out).toContain("import { SkeletonUtils } from 'three-stdlib';");
+    expect(out).toContain('useLayoutEffect');
     expect(out).toContain('function AssetModel');
     expect(out).toContain('SkeletonUtils.clone(gltf.scene)');
+    expect(out).toContain('function collectGltfNodeProjections');
+    expect(out).toContain('applyGltfNodeProjections(object, projections)');
     expect(out).toContain('/assets/dioramai/product.glb');
     expect(parseSceneFromR3fSyncModule(out)).toEqual({
       ok: true,

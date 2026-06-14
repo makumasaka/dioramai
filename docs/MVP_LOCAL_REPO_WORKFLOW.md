@@ -105,7 +105,7 @@ Through MCP/Cursor or bridge HTTP, register a project-relative asset:
   "path": "public/assets/models/chair.glb",
   "name": "Chair",
   "semanticRole": "product",
-  "importMode": "single"
+  "importMode": "hierarchy"
 }
 ```
 
@@ -114,7 +114,7 @@ HTTP example:
 ```bash
 curl -X POST http://127.0.0.1:7777/tools/import_glb_asset \
   -H "content-type: application/json" \
-  -d "{\"path\":\"public/assets/models/chair.glb\",\"name\":\"Chair\",\"semanticRole\":\"product\",\"importMode\":\"single\"}"
+  -d "{\"path\":\"public/assets/models/chair.glb\",\"name\":\"Chair\",\"semanticRole\":\"product\",\"importMode\":\"hierarchy\"}"
 ```
 
 Dioramai will:
@@ -122,6 +122,7 @@ Dioramai will:
 - validate the path stays inside the explicit project root
 - register an asset with `REGISTER_ASSET`
 - create an asset-backed scene node with `ADD_NODE`
+- inspect the GLB and add stable child nodes for its internal glTF hierarchy
 - reference the asset by `/assets/models/chair.glb`
 - write the generated R3F module and scene JSON
 
@@ -223,6 +224,7 @@ part of the MVP bridge.
 - The generated file is Dioramai-owned. Put app customization in wrapper files.
 - Code-to-runtime sync parses the embedded scene block or scene JSON, not
   arbitrary JSX.
-- GLB hierarchy import is shallow and optional.
+- GLB hierarchy import is the default. `single` remains available for
+  intentionally opaque one-node GLBs.
 - The deployed shell can connect to a local bridge, but the bridge must be
   running on the user's machine.

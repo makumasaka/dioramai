@@ -6,10 +6,27 @@ type GltfNode = {
   name?: string;
   children?: number[];
   mesh?: number;
+  skin?: number;
+  camera?: number;
   translation?: number[];
   rotation?: number[];
   scale?: number[];
   matrix?: number[];
+};
+
+type GltfMeshPrimitive = {
+  material?: number;
+};
+
+type GltfMesh = {
+  name?: string;
+  primitives?: GltfMeshPrimitive[];
+};
+
+type GltfSkin = {
+  name?: string;
+  skeleton?: number;
+  joints?: number[];
 };
 
 type GltfDocument = {
@@ -22,7 +39,9 @@ type GltfDocument = {
     nodes?: number[];
   }>;
   nodes?: GltfNode[];
-  meshes?: unknown[];
+  meshes?: GltfMesh[];
+  skins?: GltfSkin[];
+  materials?: Array<{ name?: string }>;
 };
 
 export type GltfHierarchyOptions = {
@@ -240,6 +259,84 @@ const validChildrenForNode = (
   return out;
 };
 
+type SkinMembership = {
+  skinIndex: number;
+  jointSlot: number;
+  skinName?: string;
+};
+
+const skinMembershipByNode = (skins: GltfSkin[] | undefined): Map<number, SkinMembership[]> => {
+  const out = new Map<number, SkinMembership[]>();
+  skins?.forEach((skin, skinIndex) => {
+    skin.joints?.forEach((jointIndex, jointSlot) => {
+      if (!Number.isInteger(jointIndex)) return;
+      const memberships = out.get(jointIndex) ?? [];
+      memberships.push({
+        skinIndex,
+        jointSlot,
+        ...(skin.name?.trim() ? { skinName: skin.name.trim() } : {}),
+      });
+      out.set(jointIndex, memberships);
+    });
+  });
+  return out;
+};
+
+const skinRootIndices = (skins: GltfSkin[] | undefined, nodes: GltfNode[]): number[] => {
+  const roots: number[] = [];
+  const seen = new Set<number>();
+
+  skins?.forEach((skin) => {
+    const joints = (skin.joints ?? []).filter((joint): joint is number =>
+      Number.isInteger(joint) && nodes[joint] !== undefined,
+    );
+    const jointSet = new Set(joints);
+    const childJoints = new Set<number>();
+    for (const joint of joints) {
+      for (const child of nodes[joint]?.children ?? []) {
+        if (jointSet.has(child)) childJoints.add(child);
+      }
+    }
+
+    const candidates = [
+      Number.isInteger(skin.skeleton) && nodes[skin.skeleton as number] !== undefined
+        ? skin.skeleton as number
+        : undefined,
+      ...joints.filter((joint) => !childJoints.has(joint)),
+    ].filter((value): value is number => value !== undefined);
+
+    for (const candidate of candidates) {
+      if (seen.has(candidate)) continue;
+      seen.add(candidate);
+      roots.push(candidate);
+    }
+
+    if (joints.length > 0 && candidates.length === 0) {
+      const firstJoint = joints[0] as number;
+      if (!seen.has(firstJoint)) {
+        seen.add(firstJoint);
+        roots.push(firstJoint);
+      }
+    }
+  });
+
+  return roots;
+};
+
+const tagsForNode = (
+  node: GltfNode,
+  memberships: SkinMembership[] | undefined,
+): string[] => {
+  const tags = ['gltf-node'];
+  if (node.mesh !== undefined) tags.push('gltf-mesh');
+  if (node.skin !== undefined) tags.push('gltf-skinned-mesh');
+  if (memberships !== undefined && memberships.length > 0) {
+    tags.push('gltf-joint', 'gltf-bone');
+  }
+  if (node.camera !== undefined) tags.push('gltf-camera');
+  return tags;
+};
+
 export const planGltfHierarchyFromFile = async (
   localPath: string,
   options: GltfHierarchyOptions,
@@ -260,6 +357,7 @@ export const planGltfHierarchyFromFile = async (
   const visited = new Set<number>();
   const maxNodes = options.maxNodes ?? DEFAULT_MAX_HIERARCHY_NODES;
   let limitWarningEmitted = false;
+  const membershipsByNode = skinMembershipByNode(gltf.skins);
 
   const visit = (
     gltfNodeIndex: number,
@@ -292,6 +390,15 @@ export const planGltfHierarchyFromFile = async (
     const name = gltfNode.name?.trim() || `glTF Node ${gltfNodeIndex}`;
     const nodeId = uniqueNodeId(options.parentNodeId, gltfNodeIndex, name, usedIds);
     const children = validChildrenForNode(nodes, gltfNode, `${gltfNodeIndex} (${name})`, warnings);
+    const mesh = gltfNode.mesh !== undefined ? gltf.meshes?.[gltfNode.mesh] : undefined;
+    const materialIndexes = mesh?.primitives
+      ?.map((primitive) => primitive.material)
+      .filter((material): material is number => Number.isInteger(material)) ?? [];
+    const materialNames = materialIndexes
+      .map((materialIndex) => gltf.materials?.[materialIndex]?.name?.trim())
+      .filter((materialName): materialName is string => Boolean(materialName));
+    const skinMemberships = membershipsByNode.get(gltfNodeIndex);
+    const primaryMembership = skinMemberships?.[0];
     const type: SceneNode['type'] = gltfNode.mesh !== undefined
       ? 'mesh'
       : children.length > 0
@@ -316,10 +423,24 @@ export const planGltfHierarchyFromFile = async (
           renderMode: 'gltf-inspect-only',
           transformSource: gltfNode.matrix !== undefined ? 'matrix' : 'trs',
           ...(gltfNode.mesh !== undefined ? { gltfMeshIndex: gltfNode.mesh } : {}),
+          ...(mesh?.name?.trim() ? { gltfMeshName: mesh.name.trim() } : {}),
+          ...(mesh?.primitives !== undefined ? { gltfPrimitiveCount: mesh.primitives.length } : {}),
+          ...(materialIndexes.length > 0 ? { gltfMaterialIndexes: materialIndexes } : {}),
+          ...(materialNames.length > 0 ? { gltfMaterialNames: materialNames } : {}),
+          ...(gltfNode.skin !== undefined ? { gltfSkinIndex: gltfNode.skin } : {}),
+          ...(primaryMembership !== undefined ? {
+            gltfJointIndex: primaryMembership.jointSlot,
+            gltfSkinOwnerIndex: primaryMembership.skinIndex,
+          } : {}),
+          ...(primaryMembership?.skinName !== undefined ? { gltfSkinName: primaryMembership.skinName } : {}),
+          ...(skinMemberships !== undefined && skinMemberships.length > 1
+            ? { gltfSkinMembershipCount: skinMemberships.length }
+            : {}),
+          ...(gltfNode.camera !== undefined ? { gltfCameraIndex: gltfNode.camera } : {}),
         },
         semantics: {
           source: 'import',
-          tags: gltfNode.mesh !== undefined ? ['gltf-mesh'] : ['gltf-node'],
+          tags: tagsForNode(gltfNode, skinMemberships),
         },
       }),
     });
@@ -334,6 +455,12 @@ export const planGltfHierarchyFromFile = async (
 
   sceneRootIndices(gltf, nodes).forEach((rootIndex, rootSlot) => {
     visit(rootIndex, options.parentNodeId, `scene:${gltf.scene ?? 0}/${rootSlot}`, new Set());
+  });
+
+  skinRootIndices(gltf.skins, nodes).forEach((rootIndex, rootSlot) => {
+    if (!visited.has(rootIndex)) {
+      visit(rootIndex, options.parentNodeId, `skin:${rootSlot}/0`, new Set());
+    }
   });
 
   return {

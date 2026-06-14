@@ -137,4 +137,91 @@ describe('ingestAsset', () => {
       await rm(dir, { recursive: true, force: true });
     }
   });
+
+  it('preserves skin and bone hierarchy details for animated GLBs', async () => {
+    const dir = await mkdtemp(join(tmpdir(), 'dioramai-gltf-skin-'));
+    const glbPath = join(dir, 'android.glb');
+    await writeFile(glbPath, createTestGlb({
+      asset: { version: '2.0' },
+      scene: 0,
+      scenes: [{ nodes: [0] }],
+      nodes: [
+        { name: 'Armature', children: [1, 2] },
+        { name: 'char1', mesh: 0, skin: 0 },
+        { name: 'Hips', children: [3] },
+        { name: 'Spine', children: [4] },
+        { name: 'Head' },
+      ],
+      meshes: [{
+        name: 'Android Body',
+        primitives: [{ material: 0 }, { material: 1 }],
+      }],
+      materials: [{ name: 'Armor Orange' }, { name: 'Body White' }],
+      skins: [{
+        name: 'Android Rig',
+        skeleton: 2,
+        joints: [2, 3, 4],
+      }],
+    }));
+
+    try {
+      const initial = createEmptyScene();
+      const result = await ingestAssetWithHierarchy(
+        {
+          id: 'asset-android',
+          format: 'glb',
+          localPath: glbPath,
+          uri: '/assets/dioramai/android.glb',
+          source: 'manual',
+        },
+        {
+          parentId: initial.rootId,
+          nodeId: 'android-node',
+          includeHierarchy: true,
+        },
+      );
+
+      expect(result.warnings).toEqual([]);
+      const next = result.commands.reduce((scene, command) => applyCommand(scene, command), initial);
+
+      expect(next.nodes['android-node']?.children).toEqual([
+        'android-node-gltf-0-armature',
+      ]);
+      expect(next.nodes['android-node-gltf-0-armature']?.children).toEqual([
+        'android-node-gltf-1-char1',
+        'android-node-gltf-2-hips',
+      ]);
+      expect(next.nodes['android-node-gltf-1-char1']?.metadata).toMatchObject({
+        gltfMeshIndex: 0,
+        gltfMeshName: 'Android Body',
+        gltfPrimitiveCount: 2,
+        gltfMaterialIndexes: [0, 1],
+        gltfMaterialNames: ['Armor Orange', 'Body White'],
+        gltfSkinIndex: 0,
+        renderMode: 'gltf-inspect-only',
+      });
+      expect(next.nodes['android-node-gltf-1-char1']?.semantics?.tags).toEqual([
+        'gltf-node',
+        'gltf-mesh',
+        'gltf-skinned-mesh',
+      ]);
+      expect(next.nodes['android-node-gltf-2-hips']?.metadata).toMatchObject({
+        gltfJointIndex: 0,
+        gltfSkinOwnerIndex: 0,
+        gltfSkinName: 'Android Rig',
+      });
+      expect(next.nodes['android-node-gltf-2-hips']?.semantics?.tags).toEqual([
+        'gltf-node',
+        'gltf-joint',
+        'gltf-bone',
+      ]);
+      expect(next.nodes['android-node-gltf-4-head']?.semantics?.tags).toEqual([
+        'gltf-node',
+        'gltf-joint',
+        'gltf-bone',
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
 });

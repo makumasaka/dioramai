@@ -58,7 +58,11 @@ const tools: ToolDefinition[] = [
       workspaceRelativePath: { type: 'string' },
       path: { type: 'string' },
       name: { type: 'string' },
-      importMode: { type: 'string', enum: ['single', 'shallow'] },
+      importMode: {
+        type: 'string',
+        enum: ['hierarchy', 'shallow', 'single'],
+        description: 'hierarchy is the default; shallow is a backward-compatible alias; single creates one opaque asset node.',
+      },
       semanticRole: {
         type: 'string',
         enum: ['product', 'display', 'seating', 'lighting', 'light', 'environment', 'navigation', 'decor', 'container', 'unknown'],
@@ -74,7 +78,11 @@ const tools: ToolDefinition[] = [
       path: { type: 'string' },
       workspaceRelativePath: { type: 'string' },
       name: { type: 'string' },
-      importMode: { type: 'string', enum: ['single', 'shallow'] },
+      importMode: {
+        type: 'string',
+        enum: ['hierarchy', 'shallow', 'single'],
+        description: 'hierarchy is the default; shallow is a backward-compatible alias; single creates one opaque asset node.',
+      },
       semanticRole: {
         type: 'string',
         enum: ['product', 'display', 'seating', 'lighting', 'light', 'environment', 'navigation', 'decor', 'container', 'unknown'],

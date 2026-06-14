@@ -61,11 +61,16 @@ Input:
 {
   "path": "public/assets/models/chair.glb",
   "name": "Chair",
-  "importMode": "shallow",
+  "importMode": "hierarchy",
   "semanticRole": "product",
   "dryRun": false
 }
 ```
+
+`hierarchy` is the default. It creates the renderable asset node plus stable
+inspectable child nodes for glTF internals such as meshes, skins, joints, and
+bones. `shallow` is accepted as a backward-compatible alias. Use `single` only
+when an intentionally opaque one-node GLB is desired.
 
 ### `import_glb_asset`
 

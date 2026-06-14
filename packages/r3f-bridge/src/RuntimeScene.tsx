@@ -17,6 +17,12 @@ import {
   commandFromObject3DTransform,
 } from './transformCommand';
 import type { RuntimeNodeRegistry } from './registry';
+import {
+  applyGltfNodeProjections,
+  collectGltfNodeProjections,
+  dioramaiIdForObject,
+  type GltfNodeProjection,
+} from './gltfProjection';
 
 export type RuntimeSceneProps = {
   scene: Scene;
@@ -54,10 +60,29 @@ export const isRenderableAssetUri = (uri: string | undefined): string | undefine
   return undefined;
 };
 
-function AssetModel({ uri }: { uri: string }) {
+function AssetModel({
+  uri,
+  projections,
+  onSelectNode,
+}: {
+  uri: string;
+  projections: readonly GltfNodeProjection[];
+  onSelectNode: (nodeId: string) => void;
+}) {
   const gltf = useGLTF(uri);
   const object = useMemo(() => SkeletonUtils.clone(gltf.scene), [gltf.scene]);
-  return <primitive object={object} />;
+  useLayoutEffect(() => {
+    applyGltfNodeProjections(object, projections);
+  }, [object, projections]);
+
+  const handleClick = useCallback((event: ThreeEvent<MouseEvent>) => {
+    const nodeId = dioramaiIdForObject(event.object);
+    if (nodeId === undefined) return;
+    event.stopPropagation();
+    onSelectNode(nodeId);
+  }, [onSelectNode]);
+
+  return <primitive object={object} onClick={handleClick} />;
 }
 
 function ProxyMesh({ isSelected, isHovered }: { isSelected: boolean; isHovered: boolean }) {
@@ -157,6 +182,10 @@ function RuntimeNodeInner({
     () => assetUri !== undefined ? assetUrlResolver?.(assetUri) ?? assetUri : undefined,
     [assetUri, assetUrlResolver],
   );
+  const gltfNodeProjections = useMemo(
+    () => resolvedAssetUri !== undefined ? collectGltfNodeProjections(scene, nodeId) : [],
+    [nodeId, resolvedAssetUri, scene],
+  );
 
   if (!node || (isHidden && !shouldRenderHiddenBranch)) return null;
 
@@ -207,7 +236,11 @@ function RuntimeNodeInner({
         ) : null}
         {showAsset ? (
           <Suspense fallback={<ProxyMesh isHovered={isHovered} isSelected={isSelected} />}>
-            <AssetModel uri={resolvedAssetUri} />
+            <AssetModel
+              uri={resolvedAssetUri}
+              projections={gltfNodeProjections}
+              onSelectNode={onSelect}
+            />
           </Suspense>
         ) : null}
         {showHiddenMarker ? <HiddenNodeMarker /> : null}

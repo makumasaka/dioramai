@@ -30,3 +30,11 @@ export {
   type RuntimeNodeProps,
   type RuntimeSceneProps,
 } from './RuntimeScene';
+export {
+  applyGltfNodeProjections,
+  collectGltfNodeProjections,
+  dioramaiIdForObject,
+  gltfScenePathSlots,
+  objectAtGltfScenePath,
+  type GltfNodeProjection,
+} from './gltfProjection';
