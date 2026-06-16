@@ -36,5 +36,11 @@ export {
   dioramaiIdForObject,
   gltfScenePathSlots,
   objectAtGltfScenePath,
+  resolveProjectionObject,
   type GltfNodeProjection,
 } from './gltfProjection';
+export {
+  buildGltfNodeIndexMap,
+  type GltfAssociation,
+  type GltfLike,
+} from './gltfObjectBinding';

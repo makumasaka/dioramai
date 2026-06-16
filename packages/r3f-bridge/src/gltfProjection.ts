@@ -5,6 +5,7 @@ export type GltfNodeProjection = {
   nodeId: string;
   name: string;
   gltfPath: string;
+  gltfNodeIndex?: number;
   visible: boolean;
   transform: Transform;
 };
@@ -35,6 +36,9 @@ export const collectGltfNodeProjections = (
         nodeId: node.id,
         name: node.name,
         gltfPath: node.metadata.gltfPath as string,
+        ...(typeof node.metadata.gltfNodeIndex === 'number'
+          ? { gltfNodeIndex: node.metadata.gltfNodeIndex }
+          : {}),
         visible: node.visible !== false,
         transform: node.transform,
       });
@@ -93,15 +97,35 @@ const applyTransform = (object: Object3D, transform: Transform): void => {
 const depthOfPath = (projection: GltfNodeProjection): number =>
   gltfScenePathSlots(projection.gltfPath)?.length ?? 0;
 
+/**
+ * Resolve the live (cloned) Object3D a projection should bind to.
+ *
+ * Prefers the canonical `glTF node index -> object` map (robust against loader
+ * structural changes); falls back to legacy `children[slot]` path walking when
+ * no index is available (e.g. older loaders without `associations`).
+ */
+export const resolveProjectionObject = (
+  root: Object3D,
+  projection: GltfNodeProjection,
+  nodeIndexMap?: ReadonlyMap<number, Object3D>,
+): Object3D | null => {
+  if (projection.gltfNodeIndex !== undefined && nodeIndexMap !== undefined) {
+    const byIndex = nodeIndexMap.get(projection.gltfNodeIndex);
+    if (byIndex) return byIndex;
+  }
+  return objectAtGltfScenePath(root, projection.gltfPath);
+};
+
 export const applyGltfNodeProjections = (
   root: Object3D,
   projections: readonly GltfNodeProjection[],
+  nodeIndexMap?: ReadonlyMap<number, Object3D>,
 ): void => {
   if (!isObject3DLike(root)) return;
 
   const ordered = [...projections].sort((a, b) => depthOfPath(a) - depthOfPath(b));
   for (const projection of ordered) {
-    const target = objectAtGltfScenePath(root, projection.gltfPath);
+    const target = resolveProjectionObject(root, projection, nodeIndexMap);
     if (!target) continue;
     applyTransform(target, projection.transform);
     target.visible = projection.visible;

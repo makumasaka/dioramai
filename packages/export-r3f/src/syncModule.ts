@@ -31,10 +31,16 @@ const renderSyncModule = (
   `/* eslint-disable */\n` +
   `${DIORAMAI_GENERATED_MARKER}\n` +
   `/* This file is owned by Dioramai. Edit dioramaiScene for MVP code -> runtime sync. */\n` +
-  `import { Suspense, useLayoutEffect, useMemo } from 'react';\n` +
-  `import { useGLTF } from '@react-three/drei';\n` +
+  `import { Suspense, useLayoutEffect, useMemo, useRef } from 'react';\n` +
+  `import { Environment, useGLTF } from '@react-three/drei';\n` +
   `import { SkeletonUtils } from 'three-stdlib';\n\n` +
   `type Vec3 = readonly [number, number, number];\n` +
+  `type DioramaiLight =\n` +
+  `  | { kind: 'ambient'; intensity?: number; color?: string }\n` +
+  `  | { kind: 'directional'; intensity?: number; color?: string; castShadow?: boolean }\n` +
+  `  | { kind: 'point'; intensity?: number; color?: string; distance?: number; decay?: number; castShadow?: boolean }\n` +
+  `  | { kind: 'spot'; intensity?: number; color?: string; distance?: number; decay?: number; angle?: number; penumbra?: number; castShadow?: boolean };\n` +
+  `type DioramaiEnvironment = { hdriUri?: string; enabled?: boolean; showBackground?: boolean; intensity?: number; rotationY?: number; backgroundColor?: string };\n` +
   `type DioramaiNode = {\n` +
   `  id: string;\n` +
   `  name: string;\n` +
@@ -44,10 +50,10 @@ const renderSyncModule = (
   `  transform: { position: Vec3; rotation: Vec3; scale: Vec3 };\n` +
   `  metadata: Record<string, unknown>;\n` +
   `  assetRef?: { kind: 'none' } | { kind: 'uri'; uri: string };\n` +
-  `  light?: { kind: 'ambient'; intensity?: number } | { kind: 'directional'; intensity?: number; castShadow?: boolean };\n` +
+  `  light?: DioramaiLight;\n` +
   `  [key: string]: unknown;\n` +
   `};\n` +
-  `type DioramaiSceneData = { rootId: string; nodes: Record<string, DioramaiNode>; [key: string]: unknown };\n` +
+  `type DioramaiSceneData = { rootId: string; nodes: Record<string, DioramaiNode>; environment?: DioramaiEnvironment; [key: string]: unknown };\n` +
   `type DioramaiSceneDocument = { format: 'dioramai-scene'; version: 2; data: DioramaiSceneData };\n\n` +
   `type GltfProjection = { nodeId: string; name: string; gltfPath: string; visible: boolean; transform: DioramaiNode['transform'] };\n\n` +
   `export const dioramaiScene = (\n` +
@@ -130,6 +136,39 @@ const renderSyncModule = (
   `    </mesh>\n` +
   `  );\n` +
   `}\n\n` +
+  `function DioramaiLightView({ light }: { light: DioramaiLight }) {\n` +
+  `  const targetRef = useRef<any>(null);\n` +
+  `  const lightRef = useRef<any>(null);\n` +
+  `  useLayoutEffect(() => {\n` +
+  `    if (lightRef.current && targetRef.current && 'target' in lightRef.current) {\n` +
+  `      lightRef.current.target = targetRef.current;\n` +
+  `      targetRef.current.updateMatrixWorld?.();\n` +
+  `    }\n` +
+  `  });\n` +
+  `  const color = light.color ?? '#ffffff';\n` +
+  `  if (light.kind === 'ambient') return <ambientLight color={color} intensity={light.intensity ?? 0.4} />;\n` +
+  `  if (light.kind === 'point') return <pointLight color={color} intensity={light.intensity ?? 1} distance={light.distance ?? 0} decay={light.decay ?? 2} castShadow={light.castShadow ?? false} />;\n` +
+  `  if (light.kind === 'spot') return (\n` +
+  `    <>\n` +
+  `      <spotLight ref={lightRef} color={color} intensity={light.intensity ?? 1} distance={light.distance ?? 0} decay={light.decay ?? 2} angle={light.angle ?? Math.PI / 6} penumbra={light.penumbra ?? 0} castShadow={light.castShadow ?? false} />\n` +
+  `      <object3D ref={targetRef} position={[0, 0, -1]} />\n` +
+  `    </>\n` +
+  `  );\n` +
+  `  return (\n` +
+  `    <>\n` +
+  `      <directionalLight ref={lightRef} color={color} intensity={light.intensity ?? 1} castShadow={light.castShadow ?? false} />\n` +
+  `      <object3D ref={targetRef} position={[0, 0, -1]} />\n` +
+  `    </>\n` +
+  `  );\n` +
+  `}\n\n` +
+  `function DioramaiEnvironmentView({ environment }: { environment?: DioramaiEnvironment }) {\n` +
+  `  if (!environment?.enabled || !environment.hdriUri) return null;\n` +
+  `  return (\n` +
+  `    <Suspense fallback={null}>\n` +
+  `      <Environment files={environment.hdriUri} background={environment.showBackground ?? false} environmentIntensity={environment.intensity ?? 1} environmentRotation={[0, environment.rotationY ?? 0, 0]} backgroundRotation={[0, environment.rotationY ?? 0, 0]} />\n` +
+  `    </Suspense>\n` +
+  `  );\n` +
+  `}\n\n` +
   `function SceneNode({ scene, nodeId }: { scene: DioramaiSceneData; nodeId: string }) {\n` +
   `  const node = scene.nodes[nodeId];\n` +
   `  if (!node || node.visible === false) return null;\n` +
@@ -148,8 +187,7 @@ const renderSyncModule = (
   `      scale={vec3(node.transform.scale)}\n` +
   `      userData={{ dioramaiId: node.id, sourceId: node.id }}\n` +
   `    >\n` +
-  `      {hasLight && node.light?.kind === 'ambient' ? <ambientLight intensity={node.light.intensity ?? 0.4} /> : null}\n` +
-  `      {hasLight && node.light?.kind === 'directional' ? <directionalLight intensity={node.light.intensity ?? 1} castShadow={node.light.castShadow} /> : null}\n` +
+  `      {hasLight && node.light && !inspectOnly ? <DioramaiLightView light={node.light} /> : null}\n` +
   `      {showAsset ? (\n` +
   `        <Suspense fallback={<ProxyMesh />}>\n` +
   `          <AssetModel uri={assetUri} projections={gltfNodeProjections} />\n` +
@@ -162,11 +200,17 @@ const renderSyncModule = (
   `}\n\n` +
   `export function ${componentName}() {\n` +
   `  const scene = dioramaiScene.data;\n` +
+  `  const environmentActive = Boolean(scene.environment?.enabled && scene.environment.hdriUri);\n` +
   `  return (\n` +
   `    <>\n` +
+  `      <DioramaiEnvironmentView environment={scene.environment} />\n` +
   (includeStudioLights
-    ? `      <ambientLight intensity={0.4} />\n` +
-      `      <directionalLight castShadow position={[5, 8, 5]} intensity={1.1} />\n`
+    ? `      {!environmentActive ? (\n` +
+      `        <>\n` +
+      `          <ambientLight intensity={0.4} />\n` +
+      `          <directionalLight castShadow position={[5, 8, 5]} intensity={1.1} />\n` +
+      `        </>\n` +
+      `      ) : null}\n`
     : '') +
   `      <SceneNode scene={scene} nodeId={scene.rootId} />\n` +
   `    </>\n` +

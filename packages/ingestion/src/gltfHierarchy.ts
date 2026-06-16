@@ -1,6 +1,18 @@
 import { readFile } from 'node:fs/promises';
 import { extname } from 'node:path';
-import { createNode, type Command, type SceneNode, type Transform } from '@dioramai/core';
+import {
+  createNode,
+  type Command,
+  type SceneLight,
+  type SceneNode,
+  type Transform,
+} from '@dioramai/core';
+
+type GltfNodePunctualLightRef = {
+  KHR_lights_punctual?: {
+    light?: number;
+  };
+};
 
 type GltfNode = {
   name?: string;
@@ -12,6 +24,19 @@ type GltfNode = {
   rotation?: number[];
   scale?: number[];
   matrix?: number[];
+  extensions?: GltfNodePunctualLightRef;
+};
+
+type GltfPunctualLight = {
+  name?: string;
+  type?: string;
+  color?: number[];
+  intensity?: number;
+  range?: number;
+  spot?: {
+    innerConeAngle?: number;
+    outerConeAngle?: number;
+  };
 };
 
 type GltfMeshPrimitive = {
@@ -42,6 +67,11 @@ type GltfDocument = {
   meshes?: GltfMesh[];
   skins?: GltfSkin[];
   materials?: Array<{ name?: string }>;
+  extensions?: {
+    KHR_lights_punctual?: {
+      lights?: GltfPunctualLight[];
+    };
+  };
 };
 
 export type GltfHierarchyOptions = {
@@ -337,6 +367,64 @@ const tagsForNode = (
   return tags;
 };
 
+const channelToHex = (value: number): string => {
+  const clamped = clamp(Math.round(value * 255), 0, 255);
+  return clamped.toString(16).padStart(2, '0');
+};
+
+const rgbToHex = (color: unknown): string | undefined => {
+  if (!Array.isArray(color) || color.length < 3 || !color.slice(0, 3).every(isFiniteNumber)) {
+    return undefined;
+  }
+  const [r, g, b] = color as [number, number, number];
+  return `#${channelToHex(r)}${channelToHex(g)}${channelToHex(b)}`;
+};
+
+/**
+ * Maps a KHR_lights_punctual light to a Dioramai {@link SceneLight}. Returns
+ * `null` for unsupported glTF light types (e.g. unknown values) so the caller
+ * can fall back to a non-light node type.
+ */
+const punctualLightToSceneLight = (
+  light: GltfPunctualLight,
+  warnings: string[],
+  nodeLabel: string,
+): SceneLight | null => {
+  const color = rgbToHex(light.color);
+  const intensity = isFiniteNumber(light.intensity) ? light.intensity : undefined;
+  const distance = isFiniteNumber(light.range) && light.range > 0 ? light.range : undefined;
+  const base = {
+    ...(intensity !== undefined ? { intensity } : {}),
+    ...(color !== undefined ? { color } : {}),
+  };
+
+  switch (light.type) {
+    case 'directional':
+      return { kind: 'directional', ...base };
+    case 'point':
+      return {
+        kind: 'point',
+        ...base,
+        ...(distance !== undefined ? { distance } : {}),
+      };
+    case 'spot': {
+      const outer = light.spot?.outerConeAngle;
+      const angle = isFiniteNumber(outer) && outer > 0 ? clamp(outer, 0.0001, Math.PI / 2) : undefined;
+      return {
+        kind: 'spot',
+        ...base,
+        ...(distance !== undefined ? { distance } : {}),
+        ...(angle !== undefined ? { angle } : {}),
+      };
+    }
+    default:
+      warnings.push(
+        `glTF node ${nodeLabel} references unsupported punctual light type "${String(light.type)}"; importing as a non-light node.`,
+      );
+      return null;
+  }
+};
+
 export const planGltfHierarchyFromFile = async (
   localPath: string,
   options: GltfHierarchyOptions,
@@ -344,6 +432,7 @@ export const planGltfHierarchyFromFile = async (
   const warnings: string[] = [];
   const gltf = await readGltfDocument(localPath);
   const nodes = gltf.nodes ?? [];
+  const punctualLights = gltf.extensions?.KHR_lights_punctual?.lights ?? [];
   if (nodes.length === 0) {
     return {
       commands: [],
@@ -399,11 +488,23 @@ export const planGltfHierarchyFromFile = async (
       .filter((materialName): materialName is string => Boolean(materialName));
     const skinMemberships = membershipsByNode.get(gltfNodeIndex);
     const primaryMembership = skinMemberships?.[0];
-    const type: SceneNode['type'] = gltfNode.mesh !== undefined
-      ? 'mesh'
-      : children.length > 0
-        ? 'group'
-        : 'empty';
+
+    const punctualLightIndex = gltfNode.extensions?.KHR_lights_punctual?.light;
+    const punctualLight =
+      Number.isInteger(punctualLightIndex) && punctualLightIndex !== undefined
+        ? punctualLights[punctualLightIndex]
+        : undefined;
+    const sceneLight = punctualLight
+      ? punctualLightToSceneLight(punctualLight, warnings, `${gltfNodeIndex} (${name})`)
+      : null;
+
+    const type: SceneNode['type'] = sceneLight !== null
+      ? 'light'
+      : gltfNode.mesh !== undefined
+        ? 'mesh'
+        : children.length > 0
+          ? 'group'
+          : 'empty';
 
     commands.push({
       type: 'ADD_NODE',
@@ -413,6 +514,7 @@ export const planGltfHierarchyFromFile = async (
         name,
         type,
         transform: transformForNode(gltfNode, warnings, `${gltfNodeIndex} (${name})`),
+        ...(sceneLight !== null ? { light: sceneLight } : {}),
         metadata: {
           source: 'gltf',
           assetId: options.assetId,
@@ -437,10 +539,19 @@ export const planGltfHierarchyFromFile = async (
             ? { gltfSkinMembershipCount: skinMemberships.length }
             : {}),
           ...(gltfNode.camera !== undefined ? { gltfCameraIndex: gltfNode.camera } : {}),
+          ...(sceneLight !== null && punctualLightIndex !== undefined
+            ? { gltfLightIndex: punctualLightIndex }
+            : {}),
+          ...(sceneLight !== null && punctualLight?.type !== undefined
+            ? { gltfLightType: punctualLight.type }
+            : {}),
         },
         semantics: {
           source: 'import',
-          tags: tagsForNode(gltfNode, skinMemberships),
+          tags:
+            sceneLight !== null
+              ? [...tagsForNode(gltfNode, skinMemberships), 'gltf-light']
+              : tagsForNode(gltfNode, skinMemberships),
         },
       }),
     });

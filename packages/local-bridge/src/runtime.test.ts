@@ -594,6 +594,50 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
     expect(runtime.resolvePublicAssetPath('/assets/models/chair.exe').ok).toBe(false);
   });
 
+  it('serves HDRI files from the project hdri dir but rejects other extensions', () => {
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('HDRI Route Test'), {
+      projectRoot,
+    });
+
+    expect(runtime.resolvePublicAssetPath('/assets/hdri/studio.hdr').ok).toBe(true);
+    expect(runtime.resolvePublicAssetPath('/assets/hdri/studio.exr').ok).toBe(true);
+    expect(runtime.resolvePublicAssetPath('/assets/hdri/studio.glb').ok).toBe(false);
+    expect(runtime.resolvePublicAssetPath('/assets/hdri/../secret.hdr').ok).toBe(false);
+  });
+
+  it('imports an uploaded HDRI and lists it as a public uri', async () => {
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('HDRI Import Test'), {
+      projectRoot,
+    });
+
+    const imported = await runtime.importHdriAsset({
+      name: 'My Studio HDR.hdr',
+      data: Buffer.from('#?RADIANCE\nfake-hdr-bytes'),
+    });
+
+    expect(imported.ok).toBe(true);
+    if (!imported.ok) return;
+    expect(imported.data.uri).toBe('/assets/hdri/My-Studio-HDR.hdr');
+    const onDisk = await readFile(resolve(projectRoot, 'public/assets/hdri/My-Studio-HDR.hdr'));
+    expect(onDisk.byteLength).toBeGreaterThan(0);
+
+    const listed = await runtime.listHdriAssets();
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    expect(listed.data.files.map((file) => file.uri)).toContain('/assets/hdri/My-Studio-HDR.hdr');
+  });
+
+  it('rejects non-HDRI uploads to the HDRI endpoint', async () => {
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('HDRI Reject Test'), {
+      projectRoot,
+    });
+    const rejected = await runtime.importHdriAsset({
+      name: 'model.glb',
+      data: Buffer.from('not-an-hdri'),
+    });
+    expect(rejected.ok).toBe(false);
+  });
+
   it('writes deterministic generated R3F sync modules from runtime commands', async () => {
     const scene = createEmptyScene('Sync Test');
     const runtime = new DioramaiBridgeRuntime(scene, { projectRoot });

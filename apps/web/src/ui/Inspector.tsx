@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useSceneStore } from '../store/sceneStore';
 import {
   getParent,
@@ -6,11 +6,18 @@ import {
   type TransformPatch,
   type Vec3,
   type SemanticRole,
+  type SceneLight,
+  type SceneEnvironment,
   type BehaviorDefinition,
   type BehaviorType,
   type NodeSemantics,
   type JsonValue,
 } from '@dioramai/core';
+import {
+  fetchBridgeHdriAssets,
+  postBridgeImportHdriAsset,
+  type HdriAssetEntry,
+} from '../bridge/bridgeClient';
 
 const RAD_TO_DEG = 180 / Math.PI;
 const DEG_TO_RAD = Math.PI / 180;
@@ -258,16 +265,13 @@ interface SemanticEditorProps {
 function SemanticEditor({ nodeId, semantics, currentRole }: SemanticEditorProps) {
   const dispatch = useSceneStore((s) => s.dispatch);
 
+  // These local edit buffers are seeded once per mount. The component is keyed
+  // by nodeId at the call site (<SemanticEditor key={selectedId} />), so React
+  // remounts it on selection change and these initializers re-run with the new
+  // node's semantics — no syncing effect needed.
   const [tagsInput, setTagsInput] = useState(() => (semantics?.tags ?? []).join(', '));
   const [labelInput, setLabelInput] = useState(() => semantics?.label ?? '');
   const [descInput, setDescInput] = useState(() => semantics?.description ?? '');
-
-  // Sync when node changes (SemanticEditor is keyed by nodeId at call site)
-  useEffect(() => {
-    setTagsInput((semantics?.tags ?? []).join(', '));
-    setLabelInput(semantics?.label ?? '');
-    setDescInput(semantics?.description ?? '');
-  }, [semantics?.tags, semantics?.label, semantics?.description]);
 
   const setRole = (role: SemanticRole) => {
     dispatch({ type: 'SET_NODE_SEMANTICS', nodeIds: [nodeId], semantics: { role } });
@@ -340,6 +344,301 @@ function SemanticEditor({ nodeId, semantics, currentRole }: SemanticEditorProps)
   );
 }
 
+// ─── Light editor ────────────────────────────────────────────────────────────
+
+const LIGHT_KINDS: SceneLight['kind'][] = ['ambient', 'directional', 'point', 'spot'];
+
+/** Builds a light of the target kind, carrying over shared fields. */
+const lightForKind = (kind: SceneLight['kind'], prev: SceneLight | undefined): SceneLight => {
+  const intensity = prev?.intensity;
+  const color = prev?.color;
+  const base = {
+    ...(intensity !== undefined ? { intensity } : {}),
+    ...(color !== undefined ? { color } : {}),
+  };
+  switch (kind) {
+    case 'ambient':
+      return { kind: 'ambient', ...base };
+    case 'directional':
+      return { kind: 'directional', ...base };
+    case 'point':
+      return { kind: 'point', distance: 0, decay: 2, ...base };
+    case 'spot':
+      return { kind: 'spot', distance: 0, decay: 2, angle: Math.PI / 6, penumbra: 0, ...base };
+  }
+};
+
+interface LightEditorProps {
+  nodeId: string;
+  light: SceneLight;
+}
+
+function LightEditor({ nodeId, light }: LightEditorProps) {
+  const dispatch = useSceneStore((s) => s.dispatch);
+
+  const commit = (next: SceneLight) => {
+    dispatch({ type: 'UPDATE_LIGHT', nodeId, light: next });
+  };
+
+  const patch = (changes: Partial<SceneLight>) => {
+    commit({ ...light, ...changes } as SceneLight);
+  };
+
+  const isPointOrSpot = light.kind === 'point' || light.kind === 'spot';
+
+  return (
+    <section className="inspector__section">
+      <div className="inspector__section-title">Light</div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Type</span>
+        <select
+          className="inspector__role-select"
+          value={light.kind}
+          onChange={(e) => commit(lightForKind(e.target.value as SceneLight['kind'], light))}
+        >
+          {LIGHT_KINDS.map((k) => (
+            <option key={k} value={k}>{k}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Color</span>
+        <input
+          type="color"
+          className="inspector__color"
+          value={light.color ?? '#ffffff'}
+          onChange={(e) => patch({ color: e.target.value })}
+        />
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Intensity</span>
+        <input
+          type="number"
+          step={0.1}
+          min={0}
+          className="inspector__input"
+          value={light.intensity ?? 1}
+          onChange={(e) => patch({ intensity: Number(e.target.value) })}
+        />
+      </div>
+
+      {isPointOrSpot ? (
+        <>
+          <div className="inspector__row">
+            <span className="inspector__key">Range</span>
+            <input
+              type="number"
+              step={0.5}
+              min={0}
+              className="inspector__input"
+              value={light.distance ?? 0}
+              onChange={(e) => patch({ distance: Number(e.target.value) })}
+            />
+          </div>
+          <div className="inspector__row">
+            <span className="inspector__key">Decay</span>
+            <input
+              type="number"
+              step={0.1}
+              min={0}
+              className="inspector__input"
+              value={light.decay ?? 2}
+              onChange={(e) => patch({ decay: Number(e.target.value) })}
+            />
+          </div>
+        </>
+      ) : null}
+
+      {light.kind === 'spot' ? (
+        <>
+          <div className="inspector__row">
+            <span className="inspector__key">Cone (deg)</span>
+            <input
+              type="number"
+              step={1}
+              min={1}
+              max={90}
+              className="inspector__input"
+              value={round((light.angle ?? Math.PI / 6) * RAD_TO_DEG)}
+              onChange={(e) =>
+                patch({ angle: Math.max(0.0001, Math.min(Math.PI / 2, Number(e.target.value) * DEG_TO_RAD)) })
+              }
+            />
+          </div>
+          <div className="inspector__row">
+            <span className="inspector__key">Penumbra</span>
+            <input
+              type="number"
+              step={0.05}
+              min={0}
+              max={1}
+              className="inspector__input"
+              value={light.penumbra ?? 0}
+              onChange={(e) => patch({ penumbra: Math.max(0, Math.min(1, Number(e.target.value))) })}
+            />
+          </div>
+        </>
+      ) : null}
+
+      {light.kind !== 'ambient' ? (
+        <div className="inspector__row">
+          <span className="inspector__key">Cast shadow</span>
+          <input
+            type="checkbox"
+            checked={light.castShadow ?? false}
+            onChange={(e) => patch({ castShadow: e.target.checked })}
+          />
+        </div>
+      ) : null}
+    </section>
+  );
+}
+
+// ─── Environment panel ───────────────────────────────────────────────────────
+
+const EMPTY_ENVIRONMENT: SceneEnvironment = { enabled: false, showBackground: false };
+
+function EnvironmentPanel() {
+  const dispatch = useSceneStore((s) => s.dispatch);
+  const bridgeConnected = useSceneStore((s) => s.bridgeConnected);
+  const environment = useSceneStore((s) => s.scene.environment) ?? EMPTY_ENVIRONMENT;
+  const [hdriList, setHdriList] = useState<HdriAssetEntry[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
+
+  const refreshHdriList = () => {
+    if (!bridgeConnected) return;
+    void fetchBridgeHdriAssets()
+      .then((result) => {
+        if (result.ok) setHdriList(result.data.files);
+      })
+      .catch(() => undefined);
+  };
+
+  useEffect(() => {
+    refreshHdriList();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [bridgeConnected]);
+
+  const patch = (changes: Partial<SceneEnvironment>) => {
+    dispatch({ type: 'UPDATE_ENVIRONMENT', patch: changes });
+  };
+
+  const handleFile = async (file: File) => {
+    setBusy(true);
+    setError(null);
+    try {
+      const result = await postBridgeImportHdriAsset(file);
+      if (!result.ok) {
+        setError(result.error.message);
+        return;
+      }
+      patch({ hdriUri: result.data.uri, enabled: true });
+      refreshHdriList();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <section className="inspector__section">
+      <div className="inspector__section-title">Environment (HDRI)</div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Enable</span>
+        <input
+          type="checkbox"
+          checked={environment.enabled ?? false}
+          onChange={(e) => patch({ enabled: e.target.checked })}
+        />
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Show background</span>
+        <input
+          type="checkbox"
+          checked={environment.showBackground ?? false}
+          onChange={(e) => patch({ showBackground: e.target.checked })}
+        />
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Intensity</span>
+        <input
+          type="number"
+          step={0.1}
+          min={0}
+          className="inspector__input"
+          value={environment.intensity ?? 1}
+          onChange={(e) => patch({ intensity: Number(e.target.value) })}
+        />
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Rotation (deg)</span>
+        <input
+          type="number"
+          step={1}
+          className="inspector__input"
+          value={round((environment.rotationY ?? 0) * RAD_TO_DEG)}
+          onChange={(e) => patch({ rotationY: Number(e.target.value) * DEG_TO_RAD })}
+        />
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">HDRI</span>
+        <select
+          className="inspector__role-select"
+          value={environment.hdriUri ?? ''}
+          onChange={(e) => patch({ hdriUri: e.target.value || undefined })}
+          disabled={!bridgeConnected}
+        >
+          <option value="">(none)</option>
+          {environment.hdriUri && !hdriList.some((h) => h.uri === environment.hdriUri) ? (
+            <option value={environment.hdriUri}>{environment.hdriUri}</option>
+          ) : null}
+          {hdriList.map((h) => (
+            <option key={h.uri} value={h.uri}>{h.name}</option>
+          ))}
+        </select>
+      </div>
+
+      <div className="inspector__row inspector__row--wrap">
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept=".hdr,.exr"
+          style={{ display: 'none' }}
+          onChange={(e) => {
+            const file = e.target.files?.[0];
+            if (file) void handleFile(file);
+            e.target.value = '';
+          }}
+        />
+        <button
+          type="button"
+          className="behavior-controls__btn behavior-controls__btn--add"
+          disabled={!bridgeConnected || busy}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          {busy ? 'Uploading…' : 'Add HDRI…'}
+        </button>
+      </div>
+
+      {!bridgeConnected ? (
+        <p className="inspector__hint">Connect a local bridge to add or list HDRIs.</p>
+      ) : null}
+      {error ? <p className="inspector__hint inspector__warning">{error}</p> : null}
+    </section>
+  );
+}
+
 // ─── Main Inspector ─────────────────────────────────────────────────────────
 
 export function Inspector() {
@@ -358,6 +657,7 @@ export function Inspector() {
             Select a node in the outline or click a mesh in the viewport.
           </p>
         </div>
+        <EnvironmentPanel />
       </aside>
     );
   }
@@ -399,6 +699,15 @@ export function Inspector() {
             </span>
           </div>
         </section>
+      ) : null}
+
+      {/* Light */}
+      {node.light || node.type === 'light' ? (
+        <LightEditor
+          key={`${selectedId}-light`}
+          nodeId={selectedId}
+          light={node.light ?? { kind: 'directional' }}
+        />
       ) : null}
 
       {/* Semantics */}

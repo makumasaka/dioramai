@@ -29,8 +29,9 @@ cd packages/cli
 npm pack --dry-run
 ```
 
-Expected tarball contents:
-- `dist/index.js` (~730 kB bundled ESM)
+Expected tarball contents (5 files, ~3.4 MB unpacked):
+- `dist/index.js` (bundled ESM)
+- `assets/quarry_cloudy_1k.hdr` (~2.1 MB bundled default HDRI, copied into projects on `init`)
 - `README.md`
 - `LICENSE`
 - `package.json`
@@ -141,8 +142,10 @@ Key settings:
 The CLI uses a `files` whitelist in `packages/cli/package.json`:
 
 ```json
-"files": ["dist", "README.md", "LICENSE"]
+"files": ["dist", "assets", "README.md", "LICENSE"]
 ```
 
-This guarantees only the built CLI binary, README, and LICENSE are published.
-The root `package.json` is `private: true` and cannot be published.
+This guarantees only the built CLI binary, the bundled default HDRI, README, and
+LICENSE are published. The one-off `scripts/downsizeHdr.mjs` HDRI tooling is not
+in the whitelist and is never published. The root `package.json` is
+`private: true` and cannot be published.

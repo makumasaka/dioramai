@@ -4,6 +4,7 @@ import {
   BehaviorDefinitionSchema,
   DioramaiAssetSchema,
   SceneGraphSchema,
+  SceneLightSchema,
   SceneNodeSchema,
   SemanticGroupSchema,
   SemanticRoleSchema,
@@ -28,6 +29,9 @@ export const COMMAND_TYPES = [
   'REGISTER_ASSET',
   'SET_SELECTION',
   'REPLACE_SCENE',
+  'UPDATE_LIGHT',
+  'UPDATE_ENVIRONMENT',
+  'SET_NODE_VISIBLE',
 ] as const satisfies readonly Command['type'][];
 
 type CommandTypeParity = Record<Command['type'], true>;
@@ -49,6 +53,9 @@ export const COMMAND_SCHEMA_PARITY: CommandTypeParity = {
   REGISTER_ASSET: true,
   SET_SELECTION: true,
   REPLACE_SCENE: true,
+  UPDATE_LIGHT: true,
+  UPDATE_ENVIRONMENT: true,
+  SET_NODE_VISIBLE: true,
 };
 
 const TransformPatchSchema = z
@@ -65,6 +72,21 @@ const TransformPatchSchema = z
       p.scale !== undefined,
     { message: 'patch must include at least one of position, rotation, scale' },
   );
+
+/** Patch shape for UPDATE_ENVIRONMENT: all fields optional, no defaults applied. */
+const EnvironmentPatchSchema = z
+  .object({
+    hdriUri: z.string().min(1).optional(),
+    enabled: z.boolean().optional(),
+    showBackground: z.boolean().optional(),
+    intensity: z.number().finite().nonnegative().optional(),
+    rotationY: z.number().finite().optional(),
+    backgroundColor: z
+      .string()
+      .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
+      .optional(),
+  })
+  .strict();
 
 const ArrangeLayoutSchema = z.enum(['line', 'grid', 'circle']);
 
@@ -190,6 +212,26 @@ export const CommandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('SET_SELECTION'),
       nodeId: z.string().min(1).nullable(),
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('UPDATE_LIGHT'),
+      nodeId: z.string().min(1),
+      light: SceneLightSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('UPDATE_ENVIRONMENT'),
+      patch: EnvironmentPatchSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('SET_NODE_VISIBLE'),
+      nodeId: z.string().min(1),
+      visible: z.boolean(),
     })
     .strict(),
 ]) as z.ZodType<Command>;

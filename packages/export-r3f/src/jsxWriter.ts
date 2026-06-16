@@ -55,13 +55,29 @@ export const proxyPlaceholderMesh = (baseIndent: string, metadata: Metadata | un
 };
 
 export const emitLight = (light: SceneLight, baseIndent: string): string => {
-  if (light.kind === 'ambient') {
-    const attrs =
-      light.intensity !== undefined ? ` intensity={${fmtNum(light.intensity)}}` : '';
-    return `${baseIndent}<ambientLight${attrs} />\n`;
-  }
   const parts: string[] = [];
+  if (light.color !== undefined) parts.push(`color="${escapeAttr(light.color)}"`);
   if (light.intensity !== undefined) parts.push(`intensity={${fmtNum(light.intensity)}}`);
+
+  if (light.kind === 'ambient') {
+    const tail = parts.length > 0 ? ` ${parts.join(' ')}` : '';
+    return `${baseIndent}<ambientLight${tail} />\n`;
+  }
+  if (light.kind === 'point') {
+    if (light.distance !== undefined) parts.push(`distance={${fmtNum(light.distance)}}`);
+    if (light.decay !== undefined) parts.push(`decay={${fmtNum(light.decay)}}`);
+    if (light.castShadow === true) parts.push('castShadow');
+    return `${baseIndent}<pointLight ${parts.join(' ')} />\n`;
+  }
+  if (light.kind === 'spot') {
+    if (light.distance !== undefined) parts.push(`distance={${fmtNum(light.distance)}}`);
+    if (light.decay !== undefined) parts.push(`decay={${fmtNum(light.decay)}}`);
+    if (light.angle !== undefined) parts.push(`angle={${fmtNum(light.angle)}}`);
+    if (light.penumbra !== undefined) parts.push(`penumbra={${fmtNum(light.penumbra)}}`);
+    if (light.castShadow === true) parts.push('castShadow');
+    return `${baseIndent}<spotLight ${parts.join(' ')} />\n`;
+  }
+  // directional
   if (light.castShadow === true) parts.push('castShadow');
   const tail = parts.length > 0 ? ` ${parts.join(' ')}` : '';
   return `${baseIndent}<directionalLight${tail} />\n`;

@@ -41,6 +41,12 @@ const commandTouchedNodes = (scene: Scene, command: Command): string[] => {
       return [command.asset.name, command.asset.uri ?? command.asset.id];
     case 'ADD_NODE':
       return [command.node.name, label(command.parentId)];
+    case 'UPDATE_LIGHT':
+      return [label(command.nodeId), command.light.kind];
+    case 'UPDATE_ENVIRONMENT':
+      return Object.keys(command.patch);
+    case 'SET_NODE_VISIBLE':
+      return [label(command.nodeId), command.visible ? 'visible' : 'hidden'];
     case 'SET_SELECTION':
       return command.nodeId ? [label(command.nodeId)] : ['selection cleared'];
     case 'REPLACE_SCENE':

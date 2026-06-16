@@ -1,10 +1,20 @@
+import { useState } from 'react';
+import { createLightNode, type SceneLight } from '@dioramai/core';
 import { useSceneStore } from '../store/sceneStore';
 import { SceneLoader } from './SceneLoader';
+
+const ADD_LIGHT_KINDS: { kind: SceneLight['kind']; label: string }[] = [
+  { kind: 'directional', label: 'Directional' },
+  { kind: 'point', label: 'Point' },
+  { kind: 'spot', label: 'Spot' },
+  { kind: 'ambient', label: 'Ambient' },
+];
 
 export function Toolbar() {
   const scene = useSceneStore((s) => s.scene);
   const selectedId = scene.selection;
   const dispatch = useSceneStore((s) => s.dispatch);
+  const select = useSceneStore((s) => s.select);
   const clearScene = useSceneStore((s) => s.clearScene);
   const undo = useSceneStore((s) => s.undo);
   const redo = useSceneStore((s) => s.redo);
@@ -13,6 +23,7 @@ export function Toolbar() {
   const bridgeConnected = useSceneStore((s) => s.bridgeConnected);
   const bridgeLastError = useSceneStore((s) => s.bridgeLastError);
   const disconnect = useSceneStore((s) => s.disconnect);
+  const [lightMenuOpen, setLightMenuOpen] = useState(false);
 
   const selectedNode = selectedId ? scene.nodes[selectedId] : null;
   const isRootSelected = selectedId === scene.rootId;
@@ -20,6 +31,18 @@ export function Toolbar() {
   const handleDelete = () => {
     if (!selectedId || isRootSelected) return;
     dispatch({ type: 'DELETE_NODE', nodeId: selectedId });
+  };
+
+  const addLight = (kind: SceneLight['kind']) => {
+    setLightMenuOpen(false);
+    // Parent under the selected group/empty when sensible, else under the root.
+    const parentId =
+      selectedNode && (selectedNode.type === 'group' || selectedNode.type === 'root' || selectedNode.type === 'empty')
+        ? selectedNode.id
+        : scene.rootId;
+    const node = createLightNode(kind);
+    dispatch({ type: 'ADD_NODE', parentId, node });
+    select(node.id);
   };
 
   return (
@@ -74,6 +97,35 @@ export function Toolbar() {
           >
             Redo
           </button>
+        </div>
+
+        <div className="toolbar__tool-divider" aria-hidden="true" />
+
+        <div className="toolbar__tool-group toolbar__add-light">
+          <button
+            type="button"
+            onClick={() => setLightMenuOpen((open) => !open)}
+            aria-haspopup="menu"
+            aria-expanded={lightMenuOpen}
+            title="Add a light to the scene"
+          >
+            Add Light ▾
+          </button>
+          {lightMenuOpen ? (
+            <div className="toolbar__menu" role="menu">
+              {ADD_LIGHT_KINDS.map(({ kind, label }) => (
+                <button
+                  key={kind}
+                  type="button"
+                  role="menuitem"
+                  className="toolbar__menu-item"
+                  onClick={() => addLight(kind)}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          ) : null}
         </div>
 
         <div className="toolbar__tool-divider" aria-hidden="true" />

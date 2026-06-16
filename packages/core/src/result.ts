@@ -27,6 +27,9 @@ export const err = (error: CommandError): ErrResult => ({ ok: false, error });
 
 export const issuesFromZod = (e: ZodError): CommandIssue[] =>
   e.issues.map((i) => ({
-    path: i.path,
+    path: i.path.filter(
+      (segment): segment is string | number =>
+        typeof segment === 'string' || typeof segment === 'number',
+    ),
     message: i.message,
   }));

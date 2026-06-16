@@ -74,7 +74,7 @@ describe('R3F sync module export', () => {
 
     const out = exportSceneToR3fSyncModule(scene).code;
 
-    expect(out).toContain("import { useGLTF } from '@react-three/drei';");
+    expect(out).toContain("import { Environment, useGLTF } from '@react-three/drei';");
     expect(out).toContain("import { SkeletonUtils } from 'three-stdlib';");
     expect(out).toContain('useLayoutEffect');
     expect(out).toContain('function AssetModel');
@@ -122,5 +122,50 @@ describe('R3F sync module export', () => {
     expect(exportSceneToR3fSyncModule(transformed).code).toBe(
       exportSceneToR3fSyncModule(transformed).code,
     );
+  });
+
+  it('emits light runtime scaffolding and a gated Environment, roundtripping lights + environment', () => {
+    const spot = createNode({
+      id: 'spot',
+      name: 'Spot',
+      type: 'light',
+      transform: { position: [2, 4, 2] },
+      light: {
+        kind: 'spot',
+        intensity: 3,
+        color: '#ffaa00',
+        distance: 10,
+        angle: 0.5,
+        penumbra: 0.2,
+        castShadow: true,
+      },
+    });
+    const root = createNode({ id: 'root', name: 'Root', type: 'root', children: [spot.id] });
+    const scene: Scene = {
+      rootId: root.id,
+      selection: null,
+      nodes: { [root.id]: root, [spot.id]: spot },
+      environment: {
+        hdriUri: '/assets/hdri/quarry_cloudy_1k.hdr',
+        enabled: true,
+        showBackground: true,
+        intensity: 1.2,
+        rotationY: 0.5,
+      },
+    };
+
+    const out = exportSceneToR3fSyncModule(scene, { includeStudioLights: true }).code;
+
+    expect(out).toContain("import { Environment, useGLTF } from '@react-three/drei';");
+    expect(out).toContain('function DioramaiLightView');
+    expect(out).toContain('function DioramaiEnvironmentView');
+    expect(out).toContain('<spotLight');
+    expect(out).toContain('environmentActive');
+
+    const parsed = parseSceneFromR3fSyncModule(out);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.scene.nodes.spot?.light).toEqual(spot.light);
+    expect(parsed.scene.environment).toEqual(scene.environment);
   });
 });

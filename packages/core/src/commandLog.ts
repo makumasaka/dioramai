@@ -93,6 +93,21 @@ export const summarizeCommand = (command: Command): CommandSummary => {
             ? 'clear'
             : `node ${shortId(command.nodeId)}`,
       };
+    case 'UPDATE_LIGHT':
+      return {
+        title: 'Update light',
+        detail: `${command.light.kind} light on ${shortId(command.nodeId)}`,
+      };
+    case 'UPDATE_ENVIRONMENT':
+      return {
+        title: 'Update environment',
+        detail: Object.keys(command.patch).join(', ') || 'no changes',
+      };
+    case 'SET_NODE_VISIBLE':
+      return {
+        title: 'Set visibility',
+        detail: `node ${shortId(command.nodeId)} -> ${command.visible ? 'visible' : 'hidden'}`,
+      };
     default: {
       const _exhaustive: never = command;
       return _exhaustive;

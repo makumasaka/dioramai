@@ -35,9 +35,13 @@ describe('App — core editing flows (component)', () => {
   });
 
   it('keeps deferred semantic/demo actions out of the primary MVP toolbar', () => {
-    render(<App />);
+    const { container } = render(<App />);
 
-    expect(screen.queryByRole('combobox')).not.toBeInTheDocument();
+    // The combobox check guards the primary toolbar against deferred semantic
+    // controls; environment/light comboboxes legitimately live in the Inspector.
+    const toolbar = container.querySelector('.toolbar') as HTMLElement;
+    expect(toolbar).not.toBeNull();
+    expect(within(toolbar).queryByRole('combobox')).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Load kit' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Import' })).not.toBeInTheDocument();
     expect(screen.queryByRole('button', { name: 'Structure Scene' })).not.toBeInTheDocument();

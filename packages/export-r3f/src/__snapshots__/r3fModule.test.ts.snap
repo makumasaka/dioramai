@@ -238,14 +238,19 @@ function Product(props: SemanticComponentProps) {
   return <SemanticNode {...props} semanticRole="product" />;
 }
 
-function SceneLight(props: ThreeElements['group'] & { sourceId: string; lightKind: 'ambient' | 'directional'; lightIntensity?: number; lightCastShadow?: boolean; children?: ReactNode }) {
-  const { sourceId, lightKind, lightIntensity, lightCastShadow, children, ...groupProps } = props;
+function SceneLight(props: ThreeElements['group'] & { sourceId: string; lightKind: 'ambient' | 'directional' | 'point' | 'spot'; lightIntensity?: number; lightColor?: string; lightDistance?: number; lightDecay?: number; lightAngle?: number; lightPenumbra?: number; lightCastShadow?: boolean; children?: ReactNode }) {
+  const { sourceId, lightKind, lightIntensity, lightColor, lightDistance, lightDecay, lightAngle, lightPenumbra, lightCastShadow, children, ...groupProps } = props;
+  const color = lightColor ?? '#ffffff';
   return (
     <group {...groupProps} userData={{ sourceId, semanticRole: 'light' }}>
       {lightKind === 'ambient' ? (
-        <ambientLight intensity={lightIntensity} />
+        <ambientLight color={color} intensity={lightIntensity} />
+      ) : lightKind === 'point' ? (
+        <pointLight color={color} intensity={lightIntensity} distance={lightDistance} decay={lightDecay} castShadow={lightCastShadow} />
+      ) : lightKind === 'spot' ? (
+        <spotLight color={color} intensity={lightIntensity} distance={lightDistance} decay={lightDecay} angle={lightAngle} penumbra={lightPenumbra} castShadow={lightCastShadow} />
       ) : (
-        <directionalLight intensity={lightIntensity} castShadow={lightCastShadow} />
+        <directionalLight color={color} intensity={lightIntensity} castShadow={lightCastShadow} />
       )}
       {children}
     </group>

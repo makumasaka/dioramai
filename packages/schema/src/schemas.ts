@@ -174,20 +174,65 @@ export const InteractionBehaviorSchema = z
 
 export type InteractionBehavior = z.infer<typeof InteractionBehaviorSchema>;
 
-/** Optional authored light; viewport may ignore until wired. */
+/** Hex color string, e.g. "#ffffff". */
+export const ColorHexSchema = z
+  .string()
+  .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/, 'Expected a hex color like #ffffff');
+
+/** Optional authored light. Direction (directional/spot) derives from node rotation. */
 export const SceneLightSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('ambient'),
     intensity: z.number().finite().optional(),
+    color: ColorHexSchema.optional(),
   }),
   z.object({
     kind: z.literal('directional'),
     intensity: z.number().finite().optional(),
+    color: ColorHexSchema.optional(),
+    castShadow: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal('point'),
+    intensity: z.number().finite().optional(),
+    color: ColorHexSchema.optional(),
+    /** Maps to three.js distance (range); 0 / undefined = infinite. */
+    distance: z.number().finite().nonnegative().optional(),
+    decay: z.number().finite().nonnegative().optional(),
+    castShadow: z.boolean().optional(),
+  }),
+  z.object({
+    kind: z.literal('spot'),
+    intensity: z.number().finite().optional(),
+    color: ColorHexSchema.optional(),
+    distance: z.number().finite().nonnegative().optional(),
+    decay: z.number().finite().nonnegative().optional(),
+    /** Cone half-angle in radians (three.js spotLight.angle), max PI/2. */
+    angle: z.number().finite().positive().optional(),
+    penumbra: z.number().finite().min(0).max(1).optional(),
     castShadow: z.boolean().optional(),
   }),
 ]);
 
 export type SceneLight = z.infer<typeof SceneLightSchema>;
+
+/** Scene-level image-based lighting / environment configuration. */
+export const SceneEnvironmentSchema = z.object({
+  /** Project-relative public URI of the HDRI/EXR, e.g. "/assets/hdri/quarry_cloudy_1k.hdr". */
+  hdriUri: z.string().min(1).optional(),
+  /** When false, the HDRI is not applied (editor and deployed site). */
+  enabled: z.boolean().default(true),
+  /** When true, the HDRI is shown as the visible background/skybox. */
+  showBackground: z.boolean().default(false),
+  /** Environment lighting intensity multiplier. */
+  intensity: z.number().finite().nonnegative().optional(),
+  /** Y-axis rotation of the environment in radians. */
+  rotationY: z.number().finite().optional(),
+  /** Solid background color used when showBackground is false. */
+  backgroundColor: ColorHexSchema.optional(),
+});
+
+export type SceneEnvironment = z.infer<typeof SceneEnvironmentSchema>;
 
 const SceneNodeBaseSchema = z.object({
   id: z.string().min(1),
@@ -434,6 +479,7 @@ const SceneGraphBaseSchema = z.object({
   behaviors: z.record(z.string(), BehaviorDefinitionSchema).optional(),
   assets: z.record(z.string(), DioramaiAssetSchema).optional(),
   materials: z.record(z.string(), MetadataSchema).optional(),
+  environment: SceneEnvironmentSchema.optional(),
   layoutMetadata: MetadataSchema.optional(),
   metadata: MetadataSchema.optional(),
 });

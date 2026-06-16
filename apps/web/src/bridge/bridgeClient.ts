@@ -252,3 +252,31 @@ export const bridgeAssetUrl = (uri: string): string => {
   const clean = uri.startsWith('/') ? uri : `/${uri}`;
   return bridgeUrlFor(`/project-assets${clean}`);
 };
+
+export type HdriAssetEntry = { name: string; uri: string };
+
+export const fetchBridgeHdriAssets = async (): Promise<
+  BridgeResult<{ files: HdriAssetEntry[] }>
+> => {
+  const response = await fetch(bridgeUrlFor('/hdri-assets'));
+  return response.json() as Promise<BridgeResult<{ files: HdriAssetEntry[] }>>;
+};
+
+export const postBridgeImportHdriAsset = async (
+  file: File,
+): Promise<BridgeResult<{ uri: string; fileName: string; workspaceRelativePath: string }>> => {
+  const params = new URLSearchParams({ fileName: file.name });
+  const token = getBridgeToken();
+  if (token) params.set('token', token);
+  const response = await fetch(`${getBridgeUrl()}/import-hdri-asset?${params.toString()}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/octet-stream',
+      ...(token ? { 'x-dioramai-token': token } : {}),
+    },
+    body: file,
+  });
+  return response.json() as Promise<
+    BridgeResult<{ uri: string; fileName: string; workspaceRelativePath: string }>
+  >;
+};

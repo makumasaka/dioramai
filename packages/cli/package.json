@@ -1,6 +1,6 @@
 {
   "name": "dioramai",
-  "version": "0.1.9",
+  "version": "0.2.0",
   "description": "Local-first CLI and bridge for Dioramai runtime sync in React Three Fiber repos.",
   "license": "MIT",
   "type": "module",
@@ -19,6 +19,7 @@
   },
   "files": [
     "dist",
+    "assets",
     "README.md",
     "LICENSE"
   ],

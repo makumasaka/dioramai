@@ -6,6 +6,8 @@ import {
   type InteractionBehavior,
   type NodeSemantics,
   type Scene,
+  type SceneEnvironment,
+  type SceneLight,
   type SceneNode,
   type SemanticGroup,
   type SemanticRole,
@@ -75,7 +77,10 @@ export type Command =
       asset: DioramaiAsset;
     }
   | { type: 'REPLACE_SCENE'; scene: Scene }
-  | { type: 'SET_SELECTION'; nodeId: string | null };
+  | { type: 'SET_SELECTION'; nodeId: string | null }
+  | { type: 'UPDATE_LIGHT'; nodeId: string; light: SceneLight }
+  | { type: 'UPDATE_ENVIRONMENT'; patch: Partial<SceneEnvironment> }
+  | { type: 'SET_NODE_VISIBLE'; nodeId: string; visible: boolean };
 
 const addChild = (node: SceneNode, childId: string): SceneNode => ({
   ...node,
@@ -719,6 +724,64 @@ const applySetSelection = (scene: Scene, nodeId: string | null): Scene => {
   return { ...scene, selection: nodeId };
 };
 
+const applyUpdateLight = (
+  scene: Scene,
+  nodeId: string,
+  light: SceneLight,
+): Scene => {
+  const node = scene.nodes[nodeId];
+  if (!node) return scene;
+  if (node.id === scene.rootId) return scene;
+  if (JSON.stringify(node.light) === JSON.stringify(light) && node.type === 'light') {
+    return scene;
+  }
+
+  const nextNode: SceneNode = {
+    ...node,
+    type: node.type === 'root' ? node.type : 'light',
+    light,
+  };
+  const nextScene: Scene = {
+    ...scene,
+    nodes: { ...scene.nodes, [nodeId]: nextNode },
+  };
+  if (!validateScene(nextScene)) return scene;
+  return nextScene;
+};
+
+const applyUpdateEnvironment = (
+  scene: Scene,
+  patch: Partial<SceneEnvironment>,
+): Scene => {
+  const current: SceneEnvironment = scene.environment ?? {
+    enabled: true,
+    showBackground: false,
+  };
+  const next: SceneEnvironment = { ...current, ...patch };
+  if (JSON.stringify(scene.environment) === JSON.stringify(next)) return scene;
+
+  const nextScene: Scene = { ...scene, environment: next };
+  if (!validateScene(nextScene)) return scene;
+  return nextScene;
+};
+
+const applySetNodeVisible = (
+  scene: Scene,
+  nodeId: string,
+  visible: boolean,
+): Scene => {
+  const node = scene.nodes[nodeId];
+  if (!node) return scene;
+  if (node.visible === visible) return scene;
+
+  const nextScene: Scene = {
+    ...scene,
+    nodes: { ...scene.nodes, [nodeId]: { ...node, visible } },
+  };
+  if (!validateScene(nextScene)) return scene;
+  return nextScene;
+};
+
 export const applyCommand = (scene: Scene, command: Command): Scene => {
   switch (command.type) {
     case 'ADD_NODE':
@@ -764,6 +827,12 @@ export const applyCommand = (scene: Scene, command: Command): Scene => {
       return applyReplaceScene(scene, command.scene);
     case 'SET_SELECTION':
       return applySetSelection(scene, command.nodeId);
+    case 'UPDATE_LIGHT':
+      return applyUpdateLight(scene, command.nodeId, command.light);
+    case 'UPDATE_ENVIRONMENT':
+      return applyUpdateEnvironment(scene, command.patch);
+    case 'SET_NODE_VISIBLE':
+      return applySetNodeVisible(scene, command.nodeId, command.visible);
     default: {
       const _exhaustive: never = command;
       return _exhaustive;
@@ -942,6 +1011,33 @@ const commandError = (scene: Scene, command: Command): string | undefined => {
       if (command.nodeId !== null && !scene.nodes[command.nodeId]) {
         return 'SET_SELECTION nodeId does not exist';
       }
+      return undefined;
+    case 'UPDATE_LIGHT': {
+      const node = scene.nodes[command.nodeId];
+      if (!node) return 'UPDATE_LIGHT nodeId does not exist';
+      if (command.nodeId === scene.rootId) return 'UPDATE_LIGHT cannot target root';
+      const nextScene: Scene = {
+        ...scene,
+        nodes: {
+          ...scene.nodes,
+          [command.nodeId]: { ...node, type: 'light', light: command.light },
+        },
+      };
+      if (!validateScene(nextScene)) return 'UPDATE_LIGHT would violate scene invariants';
+      return undefined;
+    }
+    case 'UPDATE_ENVIRONMENT': {
+      const current: SceneEnvironment = scene.environment ?? {
+        enabled: true,
+        showBackground: false,
+      };
+      if (!validateScene({ ...scene, environment: { ...current, ...command.patch } })) {
+        return 'UPDATE_ENVIRONMENT would violate scene invariants';
+      }
+      return undefined;
+    }
+    case 'SET_NODE_VISIBLE':
+      if (!scene.nodes[command.nodeId]) return 'SET_NODE_VISIBLE nodeId does not exist';
       return undefined;
     default: {
       const _exhaustive: never = command;

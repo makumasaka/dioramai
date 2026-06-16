@@ -186,14 +186,19 @@ const roleForComponent = (name: string): string => {
 const emitComponent = (name: string): string => {
   if (name === 'SceneLight') {
     return (
-      `function SceneLight(props: ThreeElements['group'] & { sourceId: string; lightKind: 'ambient' | 'directional'; lightIntensity?: number; lightCastShadow?: boolean; children?: ReactNode }) {\n` +
-      `  const { sourceId, lightKind, lightIntensity, lightCastShadow, children, ...groupProps } = props;\n` +
+      `function SceneLight(props: ThreeElements['group'] & { sourceId: string; lightKind: 'ambient' | 'directional' | 'point' | 'spot'; lightIntensity?: number; lightColor?: string; lightDistance?: number; lightDecay?: number; lightAngle?: number; lightPenumbra?: number; lightCastShadow?: boolean; children?: ReactNode }) {\n` +
+      `  const { sourceId, lightKind, lightIntensity, lightColor, lightDistance, lightDecay, lightAngle, lightPenumbra, lightCastShadow, children, ...groupProps } = props;\n` +
+      `  const color = lightColor ?? '#ffffff';\n` +
       `  return (\n` +
       `    <group {...groupProps} userData={{ sourceId, semanticRole: 'light' }}>\n` +
       `      {lightKind === 'ambient' ? (\n` +
-      `        <ambientLight intensity={lightIntensity} />\n` +
+      `        <ambientLight color={color} intensity={lightIntensity} />\n` +
+      `      ) : lightKind === 'point' ? (\n` +
+      `        <pointLight color={color} intensity={lightIntensity} distance={lightDistance} decay={lightDecay} castShadow={lightCastShadow} />\n` +
+      `      ) : lightKind === 'spot' ? (\n` +
+      `        <spotLight color={color} intensity={lightIntensity} distance={lightDistance} decay={lightDecay} angle={lightAngle} penumbra={lightPenumbra} castShadow={lightCastShadow} />\n` +
       `      ) : (\n` +
-      `        <directionalLight intensity={lightIntensity} castShadow={lightCastShadow} />\n` +
+      `        <directionalLight color={color} intensity={lightIntensity} castShadow={lightCastShadow} />\n` +
       `      )}\n` +
       `      {children}\n` +
       `    </group>\n` +
@@ -286,11 +291,27 @@ const emitNodeProps = (
     out += `${ind}assetUri="${escapeAttr(node.assetUri)}"\n`;
   }
   if (node.hasLight && node.node.light) {
-    out += `${ind}lightKind="${node.node.light.kind}"\n`;
-    if (node.node.light.intensity !== undefined) {
-      out += `${ind}lightIntensity={${fmtNum(node.node.light.intensity)}}\n`;
+    const light = node.node.light;
+    out += `${ind}lightKind="${light.kind}"\n`;
+    if (light.intensity !== undefined) {
+      out += `${ind}lightIntensity={${fmtNum(light.intensity)}}\n`;
     }
-    if (node.node.light.kind === 'directional' && node.node.light.castShadow === true) {
+    if (light.color !== undefined) {
+      out += `${ind}lightColor="${escapeAttr(light.color)}"\n`;
+    }
+    if ((light.kind === 'point' || light.kind === 'spot') && light.distance !== undefined) {
+      out += `${ind}lightDistance={${fmtNum(light.distance)}}\n`;
+    }
+    if ((light.kind === 'point' || light.kind === 'spot') && light.decay !== undefined) {
+      out += `${ind}lightDecay={${fmtNum(light.decay)}}\n`;
+    }
+    if (light.kind === 'spot' && light.angle !== undefined) {
+      out += `${ind}lightAngle={${fmtNum(light.angle)}}\n`;
+    }
+    if (light.kind === 'spot' && light.penumbra !== undefined) {
+      out += `${ind}lightPenumbra={${fmtNum(light.penumbra)}}\n`;
+    }
+    if (light.kind !== 'ambient' && light.castShadow === true) {
       out += `${ind}lightCastShadow\n`;
     }
   }

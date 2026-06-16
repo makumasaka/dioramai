@@ -1,4 +1,4 @@
-import type { Scene, SceneNode, Transform } from '@dioramai/schema';
+import type { Scene, SceneLight, SceneNode, Transform } from '@dioramai/schema';
 
 export const identityTransform = (): Transform => ({
   position: [0, 0, 0],
@@ -59,6 +59,64 @@ export const createNode = (input: CreateNodeInput = {}): SceneNode => {
   if (input.semanticGroupId !== undefined) node.semanticGroupId = input.semanticGroupId;
   if (input.behaviors !== undefined) node.behaviors = input.behaviors;
   return node;
+};
+
+type LightKind = SceneLight['kind'];
+
+const DEFAULT_LIGHT_NAME: Record<LightKind, string> = {
+  ambient: 'Ambient Light',
+  directional: 'Directional Light',
+  point: 'Point Light',
+  spot: 'Spot Light',
+};
+
+/** Sensible per-kind defaults, modeled on three.js light defaults. */
+const defaultLightForKind = (kind: LightKind): SceneLight => {
+  switch (kind) {
+    case 'ambient':
+      return { kind: 'ambient', intensity: 0.4, color: '#ffffff' };
+    case 'directional':
+      return { kind: 'directional', intensity: 1, color: '#ffffff' };
+    case 'point':
+      return { kind: 'point', intensity: 1, color: '#ffffff', distance: 0, decay: 2 };
+    case 'spot':
+      return {
+        kind: 'spot',
+        intensity: 1,
+        color: '#ffffff',
+        distance: 0,
+        decay: 2,
+        angle: Math.PI / 6,
+        penumbra: 0,
+      };
+  }
+};
+
+/**
+ * Builds a `type:'light'` scene node with sensible defaults for the given kind.
+ * Directional/spot lights default to a downward-ish position so direction is
+ * visually meaningful in the editor.
+ */
+export const createLightNode = (
+  kind: LightKind,
+  input: Omit<CreateNodeInput, 'type' | 'light'> & { light?: Partial<SceneLight> } = {},
+): SceneNode => {
+  const baseLight = defaultLightForKind(kind);
+  const light = (input.light ? { ...baseLight, ...input.light, kind } : baseLight) as SceneLight;
+  const positionedDefault: Partial<Transform> =
+    kind === 'directional' || kind === 'spot'
+      ? { position: [2, 4, 2] }
+      : kind === 'point'
+        ? { position: [0, 3, 0] }
+        : {};
+  const { light: _ignored, ...rest } = input;
+  return createNode({
+    name: DEFAULT_LIGHT_NAME[kind],
+    ...rest,
+    type: 'light',
+    transform: { ...positionedDefault, ...input.transform },
+    light,
+  });
 };
 
 export const createEmptyScene = (rootName = 'Root'): Scene => {

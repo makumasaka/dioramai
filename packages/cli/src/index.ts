@@ -14,6 +14,14 @@ import {
   type DioramaiDoctorItem,
 } from '@dioramai/local-bridge';
 
+/**
+ * Path to the bundled default HDRI shipped with the CLI package. Resolves
+ * relative to this module so it works both from `src/` (dev via tsx) and the
+ * bundled `dist/index.js` (published), since `assets/` sits at the package root.
+ */
+const bundledDefaultHdriPath = (): string =>
+  resolve(fileURLToPath(import.meta.url), '../../assets/quarry_cloudy_1k.hdr');
+
 type CliIo = {
   stdout: { write(chunk: string): unknown };
   stderr: { write(chunk: string): unknown };
@@ -350,6 +358,7 @@ export const runCli = async (
       const result = await initializeDioramaiProject(projectRoot, {
         template: (argValue(argv, 'template') ?? 'vite-r3f') as 'vite-r3f' | 'config',
         force: hasFlag(argv, 'force'),
+        bundledHdriPath: bundledDefaultHdriPath(),
       });
       if (!result.ok) {
         io.stderr.write(`${result.error.message}\n`);

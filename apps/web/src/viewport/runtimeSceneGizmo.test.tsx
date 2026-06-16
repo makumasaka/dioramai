@@ -16,10 +16,9 @@ vi.mock('@react-three/drei', async () => {
   const React = await import('react');
 
   return {
-    TransformControls: React.forwardRef(function TransformControls(
-      props: { object?: unknown },
-      _ref: unknown,
-    ) {
+    TransformControls: React.forwardRef(function TransformControls(props: {
+      object?: unknown;
+    }) {
       capturedObjects.push(props.object);
       return <div data-testid="transform-controls" />;
     }),

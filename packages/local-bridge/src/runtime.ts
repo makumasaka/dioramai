@@ -116,6 +116,7 @@ export type DioramaiBridgeRuntimeOptions = {
 export type DioramaiProjectConfig = {
   projectRoot?: string;
   assetDir?: string;
+  hdriDir?: string;
   generatedSceneFile?: string;
   publicAssetBase?: string;
   sceneJsonFile?: string;
@@ -150,6 +151,8 @@ const DEFAULT_SESSION_RELATIVE_PATH = 'src/generated/dioramai.scene.json';
 const DEFAULT_GENERATED_MODULE_RELATIVE_PATH = 'src/generated/DioramaiScene.generated.tsx';
 const DEFAULT_ASSET_DIR_RELATIVE_PATH = 'public/assets/models';
 const DEFAULT_PUBLIC_URL_BASE = '/assets/models';
+const DEFAULT_HDRI_DIR_RELATIVE_PATH = 'public/assets/hdri';
+const DEFAULT_HDRI_URL_BASE = '/assets/hdri';
 const DEFAULT_COMPONENT_NAME = 'DioramaiScene';
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const SEMANTIC_ROLES = new Set<SemanticRole>([
@@ -168,6 +171,7 @@ const SEMANTIC_ROLES = new Set<SemanticRole>([
 export const DEFAULT_PROJECT_CONFIG: Required<DioramaiProjectConfig> = {
   projectRoot: '.',
   assetDir: DEFAULT_ASSET_DIR_RELATIVE_PATH,
+  hdriDir: DEFAULT_HDRI_DIR_RELATIVE_PATH,
   generatedSceneFile: DEFAULT_GENERATED_MODULE_RELATIVE_PATH,
   publicAssetBase: DEFAULT_PUBLIC_URL_BASE,
   sceneJsonFile: DEFAULT_SESSION_RELATIVE_PATH,
@@ -349,6 +353,7 @@ const readProjectConfigSync = (projectRoot: string): {
       config: {
         ...(configString(raw.projectRoot) !== undefined ? { projectRoot: configString(raw.projectRoot) } : {}),
         ...(configString(raw.assetDir) !== undefined ? { assetDir: configString(raw.assetDir) } : {}),
+        ...(configString(raw.hdriDir) !== undefined ? { hdriDir: configString(raw.hdriDir) } : {}),
         ...(configString(raw.generatedSceneFile) !== undefined
           ? { generatedSceneFile: configString(raw.generatedSceneFile) }
           : {}),
@@ -370,9 +375,16 @@ const readProjectConfigSync = (projectRoot: string): {
   }
 };
 
+/** Maps an hdri dir relative path (under `public/`) to its served URL base. */
+const deriveHdriUrlBase = (hdriDirRelativePath: string): string => {
+  const normalized = hdriDirRelativePath.replace(/\\/g, '/').replace(/\/+$/, '');
+  const withoutPublic = normalized.replace(/^public\//, '');
+  return `/${withoutPublic}`.replace(/\/{2,}/g, '/');
+};
+
 const configuredRelativePath = (
   config: DioramaiProjectConfig,
-  key: 'assetDir' | 'generatedSceneFile' | 'sceneJsonFile',
+  key: 'assetDir' | 'hdriDir' | 'generatedSceneFile' | 'sceneJsonFile',
   fallback: string,
 ): string => {
   const value = config[key] ?? fallback;
@@ -502,6 +514,10 @@ const contentTypeForAsset = (absolutePath: string): string => {
       return 'image/jpeg';
     case '.webp':
       return 'image/webp';
+    case '.hdr':
+      return 'image/vnd.radiance';
+    case '.exr':
+      return 'image/x-exr';
     default:
       return 'application/octet-stream';
   }
@@ -547,6 +563,17 @@ const copyFileIfDifferent = async (sourcePath: string, targetPath: string): Prom
 const writeFileIfDifferent = async (targetPath: string, data: Buffer): Promise<void> => {
   await mkdir(dirname(targetPath), { recursive: true });
   await writeFile(targetPath, data);
+};
+
+const safeHdriFileNameFor = (sourcePath: string): { fileName: string; ext: '.hdr' | '.exr' } => {
+  const fileName = basename(sourcePath);
+  const rawExt = extname(fileName);
+  const ext = rawExt.toLowerCase();
+  if (ext !== '.hdr' && ext !== '.exr') {
+    throw new Error('Expected a .hdr or .exr HDRI file.');
+  }
+  const rawStem = rawExt.length > 0 ? fileName.slice(0, -rawExt.length) : fileName;
+  return { fileName: `${sanitizeStem(rawStem)}${ext}`, ext };
 };
 
 const uniqueRecordId = <T>(
@@ -605,6 +632,12 @@ export type DioramaiInitTemplate = 'vite-r3f' | 'config';
 export type DioramaiProjectInitOptions = {
   template?: DioramaiInitTemplate;
   force?: boolean;
+  /**
+   * Absolute path to a bundled default HDRI to copy into the project hdri dir
+   * on init. Supplied by the CLI, which ships the asset; when omitted or
+   * missing, no default HDRI is copied.
+   */
+  bundledHdriPath?: string;
 };
 
 export type DioramaiDoctorItem = {
@@ -715,6 +748,31 @@ const ensureProjectDirectory = async (
   const existed = existsSync(absolutePath);
   await mkdir(absolutePath, { recursive: true });
   if (!existed) wroteFiles.push(`${relativePath.replace(/\\/g, '/')}/`);
+};
+
+/**
+ * Copies the CLI-bundled default HDRI into the project hdri dir. No-ops when
+ * the bundled path is missing or the destination already exists (unless force).
+ * Returns the destination project-relative path when a copy happened.
+ */
+const copyBundledDefaultHdri = async (
+  projectRoot: string,
+  hdriDirRelative: string,
+  bundledHdriPath: string | undefined,
+  force: boolean,
+  wroteFiles: string[],
+): Promise<string | null> => {
+  if (!bundledHdriPath || !existsSync(bundledHdriPath)) return null;
+  const fileName = basename(bundledHdriPath);
+  const relativePath = `${hdriDirRelative.replace(/\\/g, '/')}/${fileName}`;
+  const targetPath = projectFilePath(projectRoot, relativePath);
+  if (!isPathInside(targetPath, projectRoot)) return null;
+  const publicUri = `${deriveHdriUrlBase(hdriDirRelative)}/${fileName}`.replace(/\/{2,}/g, '/');
+  if (existsSync(targetPath) && !force) return publicUri;
+  await mkdir(dirname(targetPath), { recursive: true });
+  await copyFile(bundledHdriPath, targetPath);
+  wroteFiles.push(relativePath);
+  return publicUri;
 };
 
 const packageNameForRoot = (projectRoot: string): string => {
@@ -1001,11 +1059,6 @@ export const initializeDioramaiProject = async (
 
     const configPath = resolve(projectRoot, CONFIG_FILE_NAME);
     const wroteFiles: string[] = [];
-    const starterScene = getStarterScene('default');
-    const generatedModuleContent = exportSceneToR3fSyncModule(starterScene, {
-      componentName: DEFAULT_COMPONENT_NAME,
-      includeStudioLights: true,
-    }).code;
 
     await writeProjectTextFile(projectRoot, CONFIG_FILE_NAME, jsonFile(DEFAULT_PROJECT_CONFIG), force, wroteFiles);
     const wroteConfig = wroteFiles.includes(CONFIG_FILE_NAME);
@@ -1018,7 +1071,31 @@ export const initializeDioramaiProject = async (
       return fail('VALIDATION_ERROR', 'Configured Dioramai paths must stay inside the explicit project root.');
     }
     await ensureProjectDirectory(projectRoot, loadedConfig.config.assetDir ?? DEFAULT_ASSET_DIR_RELATIVE_PATH, wroteFiles);
+    await ensureProjectDirectory(projectRoot, loadedConfig.config.hdriDir ?? DEFAULT_HDRI_DIR_RELATIVE_PATH, wroteFiles);
     await ensureProjectDirectory(projectRoot, dirname(loadedConfig.config.generatedSceneFile ?? DEFAULT_GENERATED_MODULE_RELATIVE_PATH).replace(/\\/g, '/'), wroteFiles);
+
+    // Copy the bundled default HDRI into the project so image-based lighting
+    // works offline immediately after init.
+    const hdriDirRelative = (loadedConfig.config.hdriDir ?? DEFAULT_HDRI_DIR_RELATIVE_PATH).replace(/\\/g, '/');
+    const hdriPublicUri = await copyBundledDefaultHdri(
+      projectRoot,
+      hdriDirRelative,
+      options.bundledHdriPath,
+      force,
+      wroteFiles,
+    );
+
+    // Build the starter scene, enabling the bundled HDRI environment when copied.
+    const starterScene: Scene = hdriPublicUri
+      ? {
+          ...getStarterScene('default'),
+          environment: { hdriUri: hdriPublicUri, enabled: true, showBackground: false },
+        }
+      : getStarterScene('default');
+    const generatedModuleContent = exportSceneToR3fSyncModule(starterScene, {
+      componentName: DEFAULT_COMPONENT_NAME,
+      includeStudioLights: true,
+    }).code;
 
     if (template === 'vite-r3f') {
       await writeProjectTextFile(projectRoot, 'package.json', vitePackageJson(projectRoot), force, wroteFiles);
@@ -1462,6 +1539,9 @@ export class DioramaiBridgeRuntime {
   private readonly assetDirPath: string;
   private readonly assetDirRelativePath: string;
   private readonly publicUrlBase: string;
+  private readonly hdriDirPath: string;
+  private readonly hdriDirRelativePath: string;
+  private readonly hdriUrlBase: string;
   private readonly codeWatchDebounceMs: number;
   private codeWatcher: FSWatcher | null = null;
   private codeWatchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1494,14 +1574,26 @@ export class DioramaiBridgeRuntime {
       loadedConfig.config.publicAssetBase ??
       DEFAULT_PUBLIC_URL_BASE
     ).replace(/\/+$/, '');
+    this.hdriDirRelativePath = configuredRelativePath(
+      loadedConfig.config,
+      'hdriDir',
+      DEFAULT_HDRI_DIR_RELATIVE_PATH,
+    );
+    this.hdriUrlBase = deriveHdriUrlBase(this.hdriDirRelativePath);
     this.sessionRelativePath = sessionRelativePath;
     this.generatedModuleRelativePath = generatedModuleRelativePath;
     this.sessionPath = resolve(this.projectRoot, sessionRelativePath);
     this.generatedModulePath = resolve(this.projectRoot, generatedModuleRelativePath);
     this.assetDirPath = resolve(this.projectRoot, this.assetDirRelativePath);
+    this.hdriDirPath = resolve(this.projectRoot, this.hdriDirRelativePath);
     this.codeWatchDebounceMs = options.codeWatchDebounceMs ?? 100;
 
-    for (const targetPath of [this.sessionPath, this.generatedModulePath, this.assetDirPath]) {
+    for (const targetPath of [
+      this.sessionPath,
+      this.generatedModulePath,
+      this.assetDirPath,
+      this.hdriDirPath,
+    ]) {
       if (!isPathInside(targetPath, this.projectRoot)) {
         throw new Error('Dioramai bridge paths must stay inside the project root.');
       }
@@ -1825,26 +1917,43 @@ export class DioramaiBridgeRuntime {
       return fail('VALIDATION_ERROR', 'Asset path contains an invalid null byte.');
     }
     const normalizedPublicPath = decoded.startsWith('/') ? decoded : `/${decoded}`;
-    const publicBase = this.publicUrlBase.startsWith('/')
-      ? this.publicUrlBase
-      : `/${this.publicUrlBase}`;
-    if (
-      normalizedPublicPath !== publicBase &&
-      !normalizedPublicPath.startsWith(`${publicBase}/`)
-    ) {
+    const withLeadingSlash = (value: string): string =>
+      value.startsWith('/') ? value : `/${value}`;
+
+    // Each served root maps a public URL base to a sandboxed project dir with an
+    // allowed file-extension policy. Today: GLB/GLTF models and HDRI/EXR maps.
+    const servedRoots: Array<{ base: string; dir: string; extensions: RegExp }> = [
+      {
+        base: withLeadingSlash(this.publicUrlBase),
+        dir: this.assetDirPath,
+        extensions: /\.(glb|gltf|bin|png|jpe?g|webp)$/i,
+      },
+      {
+        base: withLeadingSlash(this.hdriUrlBase),
+        dir: this.hdriDirPath,
+        extensions: /\.(hdr|exr)$/i,
+      },
+    ];
+
+    const matchedRoot = servedRoots.find(
+      (root) =>
+        normalizedPublicPath === root.base ||
+        normalizedPublicPath.startsWith(`${root.base}/`),
+    );
+    if (!matchedRoot) {
       return fail('VALIDATION_ERROR', 'Asset path is outside the configured public asset base.');
     }
 
-    const assetRelativePath = normalizedPublicPath.slice(publicBase.length).replace(/^\/+/, '');
+    const assetRelativePath = normalizedPublicPath.slice(matchedRoot.base.length).replace(/^\/+/, '');
     if (assetRelativePath.length === 0 || !isRelativeProjectPath(assetRelativePath)) {
       return fail('VALIDATION_ERROR', 'Asset file path must be relative to the configured asset dir.');
     }
-    if (!/\.(glb|gltf|bin|png|jpe?g|webp)$/i.test(assetRelativePath)) {
+    if (!matchedRoot.extensions.test(assetRelativePath)) {
       return fail('VALIDATION_ERROR', 'Asset file extension is not allowed by the local bridge.');
     }
 
-    const absolutePath = resolve(this.assetDirPath, assetRelativePath);
-    if (!isPathInside(absolutePath, this.assetDirPath) || !isPathInside(absolutePath, this.projectRoot)) {
+    const absolutePath = resolve(matchedRoot.dir, assetRelativePath);
+    if (!isPathInside(absolutePath, matchedRoot.dir) || !isPathInside(absolutePath, this.projectRoot)) {
       return fail('VALIDATION_ERROR', 'Asset file path must stay inside the configured project asset dir.');
     }
     return ok(absolutePath);
@@ -2084,6 +2193,53 @@ export class DioramaiBridgeRuntime {
     }, source);
   }
 
+  /** Lists HDRI/EXR files available under the project hdri dir as public URIs. */
+  async listHdriAssets(): Promise<BridgeResult<{ files: Array<{ name: string; uri: string }> }>> {
+    try {
+      const entries = await readdir(this.hdriDirPath, { withFileTypes: true });
+      const files = entries
+        .filter((entry) => entry.isFile() && /\.(hdr|exr)$/i.test(entry.name))
+        .map((entry) => ({ name: entry.name, uri: `${this.hdriUrlBase}/${entry.name}` }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      return ok({ files });
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code === 'ENOENT') return ok({ files: [] });
+      return fail('BRIDGE_ERROR', error instanceof Error ? error.message : String(error));
+    }
+  }
+
+  /**
+   * Writes an uploaded HDRI/EXR into the project hdri dir and returns its public
+   * URI. The web shell then dispatches UPDATE_ENVIRONMENT with the returned uri.
+   */
+  async importHdriAsset(input: {
+    name: string;
+    data: Buffer;
+  }): Promise<BridgeResult<{ uri: string; fileName: string; workspaceRelativePath: string }>> {
+    let safe: { fileName: string };
+    try {
+      safe = safeHdriFileNameFor(input.name);
+    } catch (error) {
+      return fail('VALIDATION_ERROR', error instanceof Error ? error.message : String(error));
+    }
+    if (input.data.byteLength === 0) {
+      return fail('VALIDATION_ERROR', 'Uploaded HDRI file is empty.');
+    }
+    if (input.data.byteLength > MAX_UPLOAD_BYTES) {
+      return fail('VALIDATION_ERROR', `Uploaded HDRI file exceeds ${MAX_UPLOAD_BYTES} bytes.`);
+    }
+    const targetPath = resolve(this.hdriDirPath, safe.fileName);
+    if (!isPathInside(targetPath, this.hdriDirPath) || !isPathInside(targetPath, this.projectRoot)) {
+      return fail('VALIDATION_ERROR', 'HDRI path must stay inside the configured project hdri dir.');
+    }
+    await writeFileIfDifferent(targetPath, input.data);
+    return ok({
+      uri: `${this.hdriUrlBase}/${safe.fileName}`,
+      fileName: safe.fileName,
+      workspaceRelativePath: `${this.hdriDirRelativePath.replace(/\\/g, '/')}/${safe.fileName}`,
+    });
+  }
+
   private async prepareImportAssetFile(source: ImportAssetSource): Promise<BridgeResult<{
     localPath: string;
     workspaceRelativePath: string;
@@ -2287,6 +2443,10 @@ export const startDioramaiBridgeServer = async (
         sendJson(200, await runtime.callTool('get_project_status', {}));
         return;
       }
+      if (req.method === 'GET' && url.pathname === '/hdri-assets') {
+        sendJson(200, await runtime.listHdriAssets());
+        return;
+      }
       if (req.method === 'GET' && url.pathname === '/events') {
         res.writeHead(200, {
           ...corsHeaders,
@@ -2319,6 +2479,13 @@ export const startDioramaiBridgeServer = async (
       }
       if (req.method !== 'POST') {
         sendJson(404, fail('NOT_FOUND', `No route for ${req.method ?? 'GET'} ${url.pathname}`));
+        return;
+      }
+      if (url.pathname === '/import-hdri-asset') {
+        const fileName = url.searchParams.get('fileName') ?? '';
+        const data = await readRequestBuffer(req);
+        const result = await runtime.importHdriAsset({ name: fileName, data });
+        sendJson(result.ok ? 200 : 400, result);
         return;
       }
       if (url.pathname === '/import-glb-asset') {

@@ -202,6 +202,76 @@ describe('scene JSON contract', () => {
     expect(validateScene(parsed)).toBe(true);
   });
 
+  it('roundtrips point/spot lights with color, range, and cone angle', () => {
+    const scene = canonicalScene();
+    scene.nodes.spot = {
+      id: 'spot',
+      name: 'Spot Light',
+      type: 'light',
+      children: [],
+      transform,
+      visible: true,
+      metadata: {},
+      light: {
+        kind: 'spot',
+        intensity: 2.5,
+        color: '#ffaa00',
+        distance: 12,
+        decay: 2,
+        angle: 0.5,
+        penumbra: 0.3,
+        castShadow: true,
+      },
+    };
+    scene.nodes.point = {
+      id: 'point',
+      name: 'Point Light',
+      type: 'light',
+      children: [],
+      transform,
+      visible: true,
+      metadata: {},
+      light: { kind: 'point', intensity: 1.2, color: '#00ffcc', distance: 8 },
+    };
+    scene.nodes.root = {
+      ...scene.nodes.root!,
+      children: [...scene.nodes.root!.children, 'spot', 'point'],
+    };
+
+    const parsed = parseSceneJson(serializeScene(scene));
+
+    expect(parsed?.nodes.spot?.light).toEqual(scene.nodes.spot.light);
+    expect(parsed?.nodes.point?.light).toEqual(scene.nodes.point.light);
+    expect(validateScene(parsed)).toBe(true);
+  });
+
+  it('roundtrips scene-level environment configuration', () => {
+    const scene = canonicalScene();
+    scene.environment = {
+      hdriUri: '/assets/hdri/quarry_cloudy_1k.hdr',
+      enabled: true,
+      showBackground: true,
+      intensity: 1.4,
+      rotationY: 1.57,
+      backgroundColor: '#101015',
+    };
+
+    const parsed = parseSceneJson(serializeScene(scene));
+
+    expect(parsed?.environment).toEqual(scene.environment);
+    expect(validateScene(parsed)).toBe(true);
+  });
+
+  it('rejects invalid hex colors on lights', () => {
+    const scene = canonicalScene();
+    scene.nodes.mesh = {
+      ...scene.nodes.mesh!,
+      type: 'light',
+      light: { kind: 'point', color: 'orange' as unknown as `#${string}` },
+    };
+    expect(validateScene(scene)).toBe(false);
+  });
+
   it('rejects v2 documents with missing required node contract fields', () => {
     const parsed = parseSceneJson(
       JSON.stringify({

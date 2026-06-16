@@ -779,3 +779,105 @@ Test coverage notes:
   clearing.
 - `packages/agent-interface/src/agentInterface.test.ts` covers canonical JSON
   load, embedded scene load, and parse errors.
+
+## UPDATE_LIGHT
+
+Purpose: set or replace a node's authored light payload and promote the node to
+a `light` node.
+
+Payload shape:
+
+```ts
+{ type: 'UPDATE_LIGHT'; nodeId: string; light: SceneLight }
+```
+
+`SceneLight` is a discriminated union over `kind`:
+
+- `ambient`: `intensity?`, `color?`
+- `directional`: `intensity?`, `color?`, `castShadow?`
+- `point`: `intensity?`, `color?`, `distance?`, `decay?`, `castShadow?`
+- `spot`: `intensity?`, `color?`, `distance?`, `decay?`, `angle?` (radians),
+  `penumbra?`, `castShadow?`
+
+Color is a `#rrggbb`/`#rgb` hex string. Light direction for directional/spot
+lights derives from the node transform, not the payload.
+
+Preconditions:
+
+- `nodeId` exists and is not `scene.rootId`.
+- `light` is a valid `SceneLight`.
+
+Behavior:
+
+- Replaces `node.light` with the payload.
+- Sets `node.type` to `light` (unless the node is the root, which is rejected).
+- Validates the resulting scene before accepting the change.
+
+No-op cases:
+
+- Node does not exist or is the root.
+- The node is already a `light` with an identical payload.
+
+Validation errors:
+
+- `UPDATE_LIGHT nodeId does not exist`
+- `UPDATE_LIGHT cannot target root`
+- `UPDATE_LIGHT would violate scene invariants`
+
+## UPDATE_ENVIRONMENT
+
+Purpose: merge a patch into the scene-level `environment` (image-based lighting).
+
+Payload shape:
+
+```ts
+{
+  type: 'UPDATE_ENVIRONMENT';
+  patch: Partial<{
+    hdriUri: string;
+    enabled: boolean;
+    showBackground: boolean;
+    intensity: number;
+    rotationY: number;
+    backgroundColor: string;
+  }>;
+}
+```
+
+Behavior:
+
+- Merges `patch` into `scene.environment`, creating it (with
+  `enabled: true, showBackground: false`) when absent.
+- Validates the resulting scene before accepting the change.
+
+No-op cases:
+
+- The merged environment equals the current environment.
+
+Validation errors:
+
+- `UPDATE_ENVIRONMENT would violate scene invariants`
+
+## SET_NODE_VISIBLE
+
+Purpose: toggle a node's `visible` flag (the outliner eye toggle).
+
+Payload shape:
+
+```ts
+{ type: 'SET_NODE_VISIBLE'; nodeId: string; visible: boolean }
+```
+
+Behavior:
+
+- Sets `node.visible` to the requested value.
+- Validates the resulting scene before accepting the change.
+
+No-op cases:
+
+- Node does not exist.
+- Visibility already equals the requested value.
+
+Validation errors:
+
+- `SET_NODE_VISIBLE nodeId does not exist`

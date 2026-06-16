@@ -4,6 +4,8 @@ export type {
   SceneNode,
   Scene,
   NodeType,
+  SceneLight,
+  SceneEnvironment,
   SemanticRole,
   SemanticSource,
   Trait,
@@ -22,10 +24,14 @@ export {
   cloneSceneFromJson,
   validateScene,
   cloneSceneImmutable,
+  SceneLightSchema,
+  SceneEnvironmentSchema,
+  ColorHexSchema,
 } from '@dioramai/schema';
 export {
   createEmptyScene,
   createNode,
+  createLightNode,
   createId,
   identityTransform,
   getNode,

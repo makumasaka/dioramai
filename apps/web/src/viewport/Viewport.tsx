@@ -1,10 +1,27 @@
 import { Canvas } from '@react-three/fiber';
-import { Grid, OrbitControls } from '@react-three/drei';
+import { Environment, Grid, OrbitControls } from '@react-three/drei';
 import { useShallow } from 'zustand/react/shallow';
 import { RuntimeScene, createRuntimeNodeRegistry } from '@dioramai/r3f-bridge';
-import { useMemo } from 'react';
+import { Suspense, useMemo } from 'react';
+import type { SceneEnvironment } from '@dioramai/core';
 import { useSceneStore } from '../store/sceneStore';
 import { bridgeAssetUrl } from '../bridge/bridgeClient';
+
+function SceneEnvironmentView({ environment }: { environment: SceneEnvironment }) {
+  if (!environment.enabled || !environment.hdriUri) return null;
+  const rotationY = environment.rotationY ?? 0;
+  return (
+    <Suspense fallback={null}>
+      <Environment
+        files={bridgeAssetUrl(environment.hdriUri)}
+        background={environment.showBackground}
+        environmentIntensity={environment.intensity ?? 1}
+        environmentRotation={[0, rotationY, 0]}
+        backgroundRotation={[0, rotationY, 0]}
+      />
+    </Suspense>
+  );
+}
 
 export function Viewport() {
   const { scene, gizmoMode, dispatch, select } = useSceneStore(
@@ -17,6 +34,12 @@ export function Viewport() {
   );
   const registry = useMemo(() => createRuntimeNodeRegistry(), []);
   const root = scene.nodes[scene.rootId];
+  const environment = scene.environment;
+  const environmentActive = Boolean(environment?.enabled && environment.hdriUri);
+  const backgroundColor =
+    environment?.backgroundColor && !(environmentActive && environment.showBackground)
+      ? environment.backgroundColor
+      : '#181e2e';
 
   return (
     <div className="viewport">
@@ -25,14 +48,26 @@ export function Viewport() {
         camera={{ position: [5, 5, 7], fov: 50 }}
         onPointerMissed={() => select(null)}
       >
-        <color attach="background" args={['#181e2e']} />
-        <ambientLight intensity={0.45} />
-        <directionalLight
-          castShadow
-          position={[5, 8, 5]}
-          intensity={1.2}
-          shadow-mapSize={[1024, 1024]}
-        />
+        <color attach="background" args={[backgroundColor]} />
+        {environment ? <SceneEnvironmentView environment={environment} /> : null}
+        {!environmentActive ? (
+          <>
+            <ambientLight intensity={0.45} />
+            <directionalLight
+              castShadow
+              position={[5, 8, 5]}
+              intensity={1.2}
+              shadow-mapSize={[1024, 1024]}
+            />
+          </>
+        ) : (
+          <directionalLight
+            castShadow
+            position={[5, 8, 5]}
+            intensity={0.4}
+            shadow-mapSize={[1024, 1024]}
+          />
+        )}
 
         <Grid
           position={[0, 0, 0]}

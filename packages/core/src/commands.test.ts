@@ -602,4 +602,117 @@ describe('applyCommandWithResult', () => {
     expect(result.error).toBe('UPDATE_TRANSFORM would violate scene invariants');
     expect(validateScene(result.scene)).toBe(true);
   });
+
+  it('UPDATE_LIGHT sets light payload and promotes node type to light', () => {
+    let scene = createEmptyScene();
+    scene = applyCommand(scene, {
+      type: 'ADD_NODE',
+      parentId: scene.rootId,
+      node: createNode({ id: 'lamp', name: 'Lamp' }),
+    });
+
+    const next = applyCommand(scene, {
+      type: 'UPDATE_LIGHT',
+      nodeId: 'lamp',
+      light: { kind: 'spot', intensity: 2, color: '#ff0000', angle: 0.5 },
+    });
+
+    expect(next).not.toBe(scene);
+    expect(next.nodes.lamp?.type).toBe('light');
+    expect(next.nodes.lamp?.light).toEqual({
+      kind: 'spot',
+      intensity: 2,
+      color: '#ff0000',
+      angle: 0.5,
+    });
+    assertValid(next);
+  });
+
+  it('UPDATE_LIGHT is a no-op when light is unchanged', () => {
+    let scene = createEmptyScene();
+    scene = applyCommand(scene, {
+      type: 'ADD_NODE',
+      parentId: scene.rootId,
+      node: createNode({ id: 'lamp', name: 'Lamp', type: 'light', light: { kind: 'point' } }),
+    });
+    const next = applyCommand(scene, {
+      type: 'UPDATE_LIGHT',
+      nodeId: 'lamp',
+      light: { kind: 'point' },
+    });
+    expect(next).toBe(scene);
+  });
+
+  it('UPDATE_LIGHT is a no-op for the root and missing nodes', () => {
+    const scene = createEmptyScene();
+    expect(
+      applyCommand(scene, {
+        type: 'UPDATE_LIGHT',
+        nodeId: scene.rootId,
+        light: { kind: 'ambient' },
+      }),
+    ).toBe(scene);
+    expect(
+      applyCommand(scene, {
+        type: 'UPDATE_LIGHT',
+        nodeId: 'missing',
+        light: { kind: 'ambient' },
+      }),
+    ).toBe(scene);
+  });
+
+  it('UPDATE_ENVIRONMENT merges patches into scene environment', () => {
+    const scene = createEmptyScene();
+    const enabled = applyCommand(scene, {
+      type: 'UPDATE_ENVIRONMENT',
+      patch: { hdriUri: '/assets/hdri/studio.hdr', enabled: true },
+    });
+    expect(enabled.environment).toEqual({
+      enabled: true,
+      showBackground: false,
+      hdriUri: '/assets/hdri/studio.hdr',
+    });
+
+    const withBackground = applyCommand(enabled, {
+      type: 'UPDATE_ENVIRONMENT',
+      patch: { showBackground: true },
+    });
+    expect(withBackground.environment?.showBackground).toBe(true);
+    expect(withBackground.environment?.hdriUri).toBe('/assets/hdri/studio.hdr');
+    assertValid(withBackground);
+  });
+
+  it('UPDATE_ENVIRONMENT is a no-op when nothing changes', () => {
+    const scene = applyCommand(createEmptyScene(), {
+      type: 'UPDATE_ENVIRONMENT',
+      patch: { enabled: true, showBackground: false },
+    });
+    const next = applyCommand(scene, {
+      type: 'UPDATE_ENVIRONMENT',
+      patch: { enabled: true },
+    });
+    expect(next).toBe(scene);
+  });
+
+  it('SET_NODE_VISIBLE toggles visibility and is a no-op when unchanged', () => {
+    let scene = createEmptyScene();
+    scene = applyCommand(scene, {
+      type: 'ADD_NODE',
+      parentId: scene.rootId,
+      node: createNode({ id: 'box', name: 'Box' }),
+    });
+    const hidden = applyCommand(scene, {
+      type: 'SET_NODE_VISIBLE',
+      nodeId: 'box',
+      visible: false,
+    });
+    expect(hidden.nodes.box?.visible).toBe(false);
+    assertValid(hidden);
+    expect(
+      applyCommand(hidden, { type: 'SET_NODE_VISIBLE', nodeId: 'box', visible: false }),
+    ).toBe(hidden);
+    expect(
+      applyCommand(scene, { type: 'SET_NODE_VISIBLE', nodeId: 'missing', visible: false }),
+    ).toBe(scene);
+  });
 });
