@@ -79,8 +79,13 @@ export type Command =
   | { type: 'REPLACE_SCENE'; scene: Scene }
   | { type: 'SET_SELECTION'; nodeId: string | null }
   | { type: 'UPDATE_LIGHT'; nodeId: string; light: SceneLight }
-  | { type: 'UPDATE_ENVIRONMENT'; patch: Partial<SceneEnvironment> }
+  | { type: 'UPDATE_ENVIRONMENT'; patch: EnvironmentPatch }
   | { type: 'SET_NODE_VISIBLE'; nodeId: string; visible: boolean };
+
+export type EnvironmentPatch = Omit<Partial<SceneEnvironment>, 'hdriUri'> & {
+  /** Null means "clear the optional HDRI URI"; persisted scene data still omits the field. */
+  hdriUri?: string | null;
+};
 
 const addChild = (node: SceneNode, childId: string): SceneNode => ({
   ...node,
@@ -749,15 +754,35 @@ const applyUpdateLight = (
   return nextScene;
 };
 
+const mergeEnvironmentPatch = (
+  current: SceneEnvironment | undefined,
+  patch: EnvironmentPatch,
+): SceneEnvironment => {
+  const { hdriUri, ...rest } = patch;
+  const next: SceneEnvironment = {
+    ...(current ?? {
+      enabled: true,
+      showBackground: false,
+    }),
+    ...rest,
+  };
+  if (hdriUri === null) {
+    delete next.hdriUri;
+  } else if (hdriUri !== undefined) {
+    next.hdriUri = hdriUri;
+  }
+  return next;
+};
+
 const applyUpdateEnvironment = (
   scene: Scene,
-  patch: Partial<SceneEnvironment>,
+  patch: EnvironmentPatch,
 ): Scene => {
   const current: SceneEnvironment = scene.environment ?? {
     enabled: true,
     showBackground: false,
   };
-  const next: SceneEnvironment = { ...current, ...patch };
+  const next = mergeEnvironmentPatch(current, patch);
   if (JSON.stringify(scene.environment) === JSON.stringify(next)) return scene;
 
   const nextScene: Scene = { ...scene, environment: next };
@@ -1031,7 +1056,7 @@ const commandError = (scene: Scene, command: Command): string | undefined => {
         enabled: true,
         showBackground: false,
       };
-      if (!validateScene({ ...scene, environment: { ...current, ...command.patch } })) {
+      if (!validateScene({ ...scene, environment: mergeEnvironmentPatch(current, command.patch) })) {
         return 'UPDATE_ENVIRONMENT would violate scene invariants';
       }
       return undefined;

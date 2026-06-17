@@ -3,12 +3,20 @@ import { createServer as createNetServer, type Server as NetServer } from 'node:
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, it, afterEach, beforeEach } from 'vitest';
-import { createEmptyScene, applyCommand, getStarterScene, type Command, type SceneNode } from '@dioramai/core';
+import {
+  createEmptyScene,
+  applyCommand,
+  getStarterScene,
+  serializeScene,
+  type Command,
+  type SceneNode,
+} from '@dioramai/core';
 import { exportSceneToR3fSyncModule, parseSceneFromR3fSyncModule } from '@dioramai/export-r3f';
 import {
   DioramaiBridgeRuntime,
   doctorDioramaiProject,
   initializeDioramaiProject,
+  loadInitialBridgeScene,
   resolveWorkspaceRelativePath,
   startDioramaiBridgeServer,
   startDioramaiBridgeServerWithFallback,
@@ -625,6 +633,53 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
     expect(listed.ok).toBe(true);
     if (!listed.ok) return;
     expect(listed.data.files.map((file) => file.uri)).toContain('/assets/hdri/My-Studio-HDR.hdr');
+  });
+
+  it('loads the bundled default HDRI into scenes that do not declare an environment', async () => {
+    await mkdir(resolve(projectRoot, 'src/generated'), { recursive: true });
+    await writeFile(
+      resolve(projectRoot, 'src/generated/dioramai.scene.json'),
+      serializeScene(createEmptyScene('HDRI Startup Test')),
+      'utf8',
+    );
+    const bundledDir = resolve(projectRoot, 'bundle');
+    await mkdir(bundledDir, { recursive: true });
+    const bundledHdriPath = resolve(bundledDir, 'quarry_cloudy_1k.hdr');
+    await writeFile(bundledHdriPath, '#?RADIANCE\nfake-default-hdri', 'utf8');
+
+    const scene = await loadInitialBridgeScene({ projectRoot, bundledHdriPath });
+
+    expect(scene.environment).toEqual({
+      hdriUri: '/assets/hdri/quarry_cloudy_1k.hdr',
+      enabled: true,
+      showBackground: false,
+      intensity: 1,
+      rotationY: 0,
+    });
+    const copied = await readFile(resolve(projectRoot, 'public/assets/hdri/quarry_cloudy_1k.hdr'), 'utf8');
+    expect(copied).toContain('#?RADIANCE');
+  });
+
+  it('updates and clears HDRI environment through the command route', async () => {
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('HDRI Command Test'), {
+      projectRoot,
+    });
+
+    const enabled = await runtime.callTool('update_environment', {
+      patch: { hdriUri: '/assets/hdri/studio.hdr', enabled: true },
+    });
+    expect(enabled.ok).toBe(true);
+    if (!enabled.ok) return;
+    expect(enabled.data.scene.environment?.hdriUri).toBe('/assets/hdri/studio.hdr');
+    expect(enabled.data.scene.environment?.enabled).toBe(true);
+
+    const cleared = await runtime.callTool('update_environment', {
+      patch: { hdriUri: null, enabled: false, showBackground: false },
+    });
+    expect(cleared.ok).toBe(true);
+    if (!cleared.ok) return;
+    expect(cleared.data.scene.environment?.hdriUri).toBeUndefined();
+    expect(cleared.data.scene.environment?.enabled).toBe(false);
   });
 
   it('rejects non-HDRI uploads to the HDRI endpoint', async () => {

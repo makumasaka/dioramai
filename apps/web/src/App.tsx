@@ -3,7 +3,6 @@ import { useCallback, useRef, useState } from 'react';
 import type { MouseEvent as ReactMouseEvent } from 'react';
 import { BridgeSession } from './bridge/BridgeSession';
 import { CodePane } from './ui/CodePane';
-import { CommandTimeline } from './ui/CommandTimeline';
 import { Inspector } from './ui/Inspector';
 import { Onboarding } from './ui/Onboarding';
 import { Toolbar } from './ui/Toolbar';
@@ -14,18 +13,16 @@ import { Viewport } from './viewport/Viewport';
 
 const clamp = (v: number, min: number, max: number) => Math.max(min, Math.min(max, v));
 
-type DragAxis = 'y-code' | 'y-timeline' | 'x-tree' | 'x-inspector';
+type DragAxis = 'y-code' | 'x-tree' | 'x-inspector';
 
 interface PanelSizes {
   codePaneH: number;
-  timelineH: number;
   treeW: number;
   inspectorW: number;
 }
 
-const TIMELINE_COLLAPSED_H = 32;
-const INITIAL_SIZES: PanelSizes = { codePaneH: 220, timelineH: TIMELINE_COLLAPSED_H, treeW: 260, inspectorW: 300 };
-const LIMITS = { codePaneH: [60, 700], timelineH: [TIMELINE_COLLAPSED_H, 500], treeW: [120, 600], inspectorW: [160, 700] } as const;
+const INITIAL_SIZES: PanelSizes = { codePaneH: 220, treeW: 260, inspectorW: 300 };
+const LIMITS = { codePaneH: [60, 700], treeW: [120, 600], inspectorW: [160, 700] } as const;
 
 function useDragResize() {
   const [sizes, setSizes] = useState<PanelSizes>(INITIAL_SIZES);
@@ -48,7 +45,6 @@ function useDragResize() {
       setSizes((prev) => {
         switch (axis) {
           case 'y-code':      return { ...prev, codePaneH:   clamp(s.codePaneH   - dy, LIMITS.codePaneH[0],   LIMITS.codePaneH[1]) };
-          case 'y-timeline':  return { ...prev, timelineH:   clamp(s.timelineH   - dy, LIMITS.timelineH[0],   LIMITS.timelineH[1]) };
           case 'x-tree':      return { ...prev, treeW:       clamp(s.treeW       + dx, LIMITS.treeW[0],       LIMITS.treeW[1]) };
           case 'x-inspector': return { ...prev, inspectorW:  clamp(s.inspectorW  - dx, LIMITS.inspectorW[0],  LIMITS.inspectorW[1]) };
         }
@@ -83,14 +79,14 @@ function DragHandle({ axis, onMouseDown }: { axis: 'x' | 'y'; onMouseDown: (e: R
 function Editor() {
   useKeyboardShortcuts();
   const { sizes, startDrag } = useDragResize();
-  const { codePaneH, timelineH, treeW, inspectorW } = sizes;
+  const { codePaneH, treeW, inspectorW } = sizes;
 
   return (
     <div className="app">
       <Toolbar />
       <div
         className="editor-body"
-        style={{ gridTemplateRows: `minmax(0, 1fr) 5px ${codePaneH}px 5px ${timelineH}px` }}
+        style={{ gridTemplateRows: `minmax(0, 1fr) 5px ${codePaneH}px` }}
       >
         <main
           className="main"
@@ -104,8 +100,6 @@ function Editor() {
         </main>
         <DragHandle axis="y" onMouseDown={(e) => startDrag('y-code', e)} />
         <CodePane />
-        <DragHandle axis="y" onMouseDown={(e) => startDrag('y-timeline', e)} />
-        <CommandTimeline />
       </div>
     </div>
   );

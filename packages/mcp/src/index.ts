@@ -5,6 +5,7 @@ export const DIORAMAI_MCP_TOOL_NAMES = [
   'register_asset',
   'import_glb_asset',
   'update_transform',
+  'update_environment',
   'set_node_semantics',
   'add_behavior',
   'remove_behavior',

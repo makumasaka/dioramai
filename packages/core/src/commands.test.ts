@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { validateScene } from '@dioramai/schema';
 import { applyCommand, applyCommandWithResult, applyReparent, type Command } from './commands';
+import { CommandSchema } from './commandSchema';
 import { showroomScene } from './fixtures';
 import { createEmptyScene, createNode } from './scene';
 import { getWorldMatrix } from './worldTransform';
@@ -679,7 +680,31 @@ describe('applyCommandWithResult', () => {
     });
     expect(withBackground.environment?.showBackground).toBe(true);
     expect(withBackground.environment?.hdriUri).toBe('/assets/hdri/studio.hdr');
+
+    const cleared = applyCommand(withBackground, {
+      type: 'UPDATE_ENVIRONMENT',
+      patch: { hdriUri: null, enabled: false, showBackground: false },
+    });
+    expect(cleared.environment?.hdriUri).toBeUndefined();
+    expect(cleared.environment?.enabled).toBe(false);
+    expect(cleared.environment?.showBackground).toBe(false);
     assertValid(withBackground);
+    assertValid(cleared);
+  });
+
+  it('UPDATE_ENVIRONMENT schema accepts null as clear-hdri command state only', () => {
+    expect(
+      CommandSchema.safeParse({
+        type: 'UPDATE_ENVIRONMENT',
+        patch: { hdriUri: null, enabled: false },
+      }).success,
+    ).toBe(true);
+    expect(
+      CommandSchema.safeParse({
+        type: 'UPDATE_ENVIRONMENT',
+        patch: { hdriUri: '' },
+      }).success,
+    ).toBe(false);
   });
 
   it('UPDATE_ENVIRONMENT is a no-op when nothing changes', () => {

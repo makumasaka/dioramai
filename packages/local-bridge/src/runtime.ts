@@ -106,6 +106,7 @@ export type DioramaiBridgeRuntimeOptions = {
   generatedModuleRelativePath?: string;
   assetDirRelativePath?: string;
   publicUrlBase?: string;
+  bundledHdriPath?: string;
   watchCode?: boolean;
   codeWatchDebounceMs?: number;
   pairingToken?: string;
@@ -153,6 +154,7 @@ const DEFAULT_ASSET_DIR_RELATIVE_PATH = 'public/assets/models';
 const DEFAULT_PUBLIC_URL_BASE = '/assets/models';
 const DEFAULT_HDRI_DIR_RELATIVE_PATH = 'public/assets/hdri';
 const DEFAULT_HDRI_URL_BASE = '/assets/hdri';
+const DEFAULT_HDRI_FILE_NAME = 'quarry_cloudy_1k.hdr';
 const DEFAULT_COMPONENT_NAME = 'DioramaiScene';
 const MAX_UPLOAD_BYTES = 100 * 1024 * 1024;
 const SEMANTIC_ROLES = new Set<SemanticRole>([
@@ -624,7 +626,17 @@ export const loadInitialBridgeScene = async (
     options.sessionRelativePath ??
     configuredRelativePath(loadedConfig.config, 'sceneJsonFile', DEFAULT_SESSION_RELATIVE_PATH);
   const sessionPath = resolve(projectRoot, sessionRelativePath);
-  return (await loadSceneFromFile(sessionPath)) ?? getStarterScene('default');
+  const hdriDirRelative = configuredRelativePath(
+    loadedConfig.config,
+    'hdriDir',
+    DEFAULT_HDRI_DIR_RELATIVE_PATH,
+  );
+  const scene = (await loadSceneFromFile(sessionPath)) ?? getStarterScene('default');
+  return applyDefaultEnvironment(scene, {
+    projectRoot,
+    hdriDirRelative,
+    ...(options.bundledHdriPath !== undefined ? { bundledHdriPath: options.bundledHdriPath } : {}),
+  });
 };
 
 export type DioramaiInitTemplate = 'vite-r3f' | 'config';
@@ -773,6 +785,54 @@ const copyBundledDefaultHdri = async (
   await copyFile(bundledHdriPath, targetPath);
   wroteFiles.push(relativePath);
   return publicUri;
+};
+
+const ensureDefaultHdri = async (
+  projectRoot: string,
+  hdriDirRelative: string,
+  bundledHdriPath: string | undefined,
+): Promise<string | null> => {
+  const normalizedHdriDir = hdriDirRelative.replace(/\\/g, '/');
+  const existingRelativePath = `${normalizedHdriDir}/${DEFAULT_HDRI_FILE_NAME}`;
+  const existingPath = projectFilePath(projectRoot, existingRelativePath);
+  const publicUri = `${deriveHdriUrlBase(normalizedHdriDir)}/${DEFAULT_HDRI_FILE_NAME}`.replace(/\/{2,}/g, '/');
+
+  if (existsSync(existingPath)) return publicUri;
+  if (!bundledHdriPath || !existsSync(bundledHdriPath)) return null;
+  if (basename(bundledHdriPath) !== DEFAULT_HDRI_FILE_NAME) return null;
+  if (!isPathInside(existingPath, projectRoot)) return null;
+
+  await mkdir(dirname(existingPath), { recursive: true });
+  await copyFile(bundledHdriPath, existingPath);
+  return publicUri;
+};
+
+const applyDefaultEnvironment = async (
+  scene: Scene,
+  options: {
+    projectRoot: string;
+    hdriDirRelative: string;
+    bundledHdriPath?: string;
+  },
+): Promise<Scene> => {
+  if (scene.environment !== undefined) return scene;
+  const hdriUri = await ensureDefaultHdri(
+    options.projectRoot,
+    options.hdriDirRelative,
+    options.bundledHdriPath,
+  );
+  return hdriUri
+    ? {
+        ...scene,
+        environment: {
+          hdriUri,
+          enabled: true,
+          showBackground: false,
+          intensity: 1,
+          rotationY: 0,
+        },
+      }
+    : scene;
 };
 
 const packageNameForRoot = (projectRoot: string): string => {
@@ -1987,6 +2047,8 @@ export class DioramaiBridgeRuntime {
           return this.importGlbAssetTool(input, source);
         case 'update_transform':
           return this.updateTransform(input, source);
+        case 'update_environment':
+          return this.updateEnvironment(input, source);
         case 'export_r3f':
           return this.exportR3f(input);
         case 'write_scene_to_file':
@@ -2095,6 +2157,24 @@ export class DioramaiBridgeRuntime {
       command: {
         type: 'UPDATE_TRANSFORM',
         nodeId: input.nodeId,
+        patch,
+      },
+      ...(input.dryRun === true ? { dryRun: true } : {}),
+    }, source);
+  }
+
+  private async updateEnvironment(input: unknown, source: SceneEvent['source']): Promise<BridgeResult<unknown>> {
+    const patch = isRecord(input) && isRecord(input.patch)
+      ? input.patch
+      : isRecord(input) && isRecord(input.environment)
+        ? input.environment
+        : undefined;
+    if (!isRecord(input) || patch === undefined) {
+      return fail('VALIDATION_ERROR', 'update_environment requires { patch } or { environment }.');
+    }
+    return this.applyCommand({
+      command: {
+        type: 'UPDATE_ENVIRONMENT',
         patch,
       },
       ...(input.dryRun === true ? { dryRun: true } : {}),
@@ -2356,6 +2436,7 @@ const SAFE_ROUTE_TO_TOOL: Record<string, string> = {
   '/load-scene': 'load_scene',
   '/register-asset': 'register_asset',
   '/update-transform': 'update_transform',
+  '/update-environment': 'update_environment',
   '/import-glb-asset-json': 'import_glb_asset',
   '/export-r3f': 'export_r3f',
   '/write-scene-to-file': 'write_scene_to_file',
@@ -2372,6 +2453,7 @@ const SAFE_TOOL_NAMES = new Set([
   'register_asset',
   'import_glb_asset',
   'update_transform',
+  'update_environment',
   'set_node_semantics',
   'add_behavior',
   'remove_behavior',

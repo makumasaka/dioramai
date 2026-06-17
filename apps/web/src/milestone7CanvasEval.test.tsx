@@ -93,6 +93,11 @@ const fixture = JSON.parse(
   ),
 ) as IntentFixture;
 
+const openAdvancedTab = async (user: ReturnType<typeof userEvent.setup>) => {
+  const panel = screen.getByRole('complementary', { name: /inspector panel/i });
+  await user.click(within(panel).getByRole('button', { name: /advanced/i }));
+};
+
 describe('Milestone 7 Loop C canvas editing eval', () => {
   beforeEach(() => {
     useSceneStore.getState().reset();
@@ -128,10 +133,10 @@ describe('Milestone 7 Loop C canvas editing eval', () => {
     await user.type(spinbuttons[0]!, '2.5');
     await user.tab();
 
-    await user.click(screen.getByTitle('Expand command timeline'));
-    const commandLog = screen.getByRole('region', { name: /command timeline/i });
+    await openAdvancedTab(user);
+    const commandHistory = screen.getByRole('region', { name: /command history/i });
     await waitFor(() => {
-      expect(within(commandLog).getAllByText('UPDATE_TRANSFORM').length).toBeGreaterThan(0);
+      expect(within(commandHistory).getAllByText('UPDATE_TRANSFORM').length).toBeGreaterThan(0);
     });
     expect(useSceneStore.getState().commandLog.at(-1)?.command).toEqual({
       type: 'UPDATE_TRANSFORM',

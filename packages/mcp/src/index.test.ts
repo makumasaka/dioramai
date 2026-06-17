@@ -15,6 +15,7 @@ describe('@dioramai/mcp bridge-only surface', () => {
       'register_asset',
       'import_glb_asset',
       'update_transform',
+      'update_environment',
       'set_node_semantics',
       'add_behavior',
       'remove_behavior',
@@ -26,6 +27,7 @@ describe('@dioramai/mcp bridge-only surface', () => {
     expect(DIORAMAI_MCP_FORBIDDEN_CAPABILITIES).toContain('apply_command');
     expect(DIORAMAI_MCP_FORBIDDEN_CAPABILITIES).toContain('generate_asset');
     expect(isDioramaiMcpToolName('update_transform')).toBe(true);
+    expect(isDioramaiMcpToolName('update_environment')).toBe(true);
     expect(isDioramaiMcpToolName('apply_command')).toBe(false);
   });
 

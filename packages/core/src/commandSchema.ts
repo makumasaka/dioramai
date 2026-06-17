@@ -76,7 +76,7 @@ const TransformPatchSchema = z
 /** Patch shape for UPDATE_ENVIRONMENT: all fields optional, no defaults applied. */
 const EnvironmentPatchSchema = z
   .object({
-    hdriUri: z.string().min(1).optional(),
+    hdriUri: z.string().min(1).nullable().optional(),
     enabled: z.boolean().optional(),
     showBackground: z.boolean().optional(),
     intensity: z.number().finite().nonnegative().optional(),

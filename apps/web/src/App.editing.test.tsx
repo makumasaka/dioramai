@@ -9,9 +9,9 @@ vi.mock('./viewport/Viewport', () => ({
   Viewport: () => <div data-testid="viewport-stub" />,
 }));
 
-const expandTimeline = async (user: ReturnType<typeof userEvent.setup>) => {
-  const toggleBtn = screen.getByTitle('Expand command timeline');
-  await user.click(toggleBtn);
+const openAdvancedTab = async (user: ReturnType<typeof userEvent.setup>) => {
+  const panel = screen.getByRole('complementary', { name: /inspector panel/i });
+  await user.click(within(panel).getByRole('button', { name: /advanced/i }));
 };
 
 const treeCubeButton = (): HTMLElement => {
@@ -84,10 +84,10 @@ describe('App — core editing flows (component)', () => {
     await user.type(spinbuttons[1]!, '3.5');
     await user.tab();
 
-    await expandTimeline(user);
-    const commandLog = screen.getByRole('region', { name: /command timeline/i });
+    await openAdvancedTab(user);
+    const commandHistory = screen.getByRole('region', { name: /command history/i });
     await waitFor(() => {
-      expect(within(commandLog).getAllByText('UPDATE_TRANSFORM').length).toBeGreaterThan(0);
+      expect(within(commandHistory).getAllByText('UPDATE_TRANSFORM').length).toBeGreaterThan(0);
     });
     expect(useSceneStore.getState().commandLog.at(-1)?.command).toEqual({
       type: 'UPDATE_TRANSFORM',
@@ -115,14 +115,14 @@ describe('App — core editing flows (component)', () => {
     ]);
   });
 
-  it('shows timeline rows for structural edits but not selection', async () => {
+  it('shows history rows for structural edits but not selection', async () => {
     render(<App />);
 
     const root = useSceneStore.getState().scene.rootId;
     await user.click(treeCubeButton());
-    await expandTimeline(user);
-    const commandLog = screen.getByRole('region', { name: /command timeline/i });
-    expect(within(commandLog).getByText('No commands yet.')).toBeInTheDocument();
+    await openAdvancedTab(user);
+    const commandHistory = screen.getByRole('region', { name: /command history/i });
+    expect(within(commandHistory).getByText('No commands yet.')).toBeInTheDocument();
 
     await act(() => {
       useSceneStore.getState().dispatch({
@@ -132,34 +132,9 @@ describe('App — core editing flows (component)', () => {
       });
     });
     await waitFor(() => {
-      expect(within(commandLog).queryByText('No commands yet.')).not.toBeInTheDocument();
-      expect(within(commandLog).getByText('UPDATE_TRANSFORM')).toBeInTheDocument();
+      expect(within(commandHistory).queryByText('No commands yet.')).not.toBeInTheDocument();
+      expect(within(commandHistory).getByText('UPDATE_TRANSFORM')).toBeInTheDocument();
     });
-  });
-
-  it('edits UPDATE_TRANSFORM parameters in timeline and recomputes scene', async () => {
-    render(<App />);
-    await user.click(treeCubeButton());
-
-    const inspector = screen.getByRole('complementary');
-    const spinbuttons = within(inspector).getAllByRole('spinbutton');
-    await user.clear(spinbuttons[0]!);
-    await user.type(spinbuttons[0]!, '3');
-    await user.tab();
-
-    await expandTimeline(user);
-    const timeline = screen.getByRole('region', { name: /command timeline/i });
-    const positionX = within(timeline).getByRole('spinbutton', { name: /position x/i });
-    await user.clear(positionX);
-    await user.type(positionX, '6');
-
-    const recompute = within(timeline).getByRole('button', {
-      name: /recompute/i,
-    });
-    expect(recompute).not.toBeDisabled();
-    await user.click(recompute);
-
-    expect(useSceneStore.getState().scene.nodes['default-cube-1']?.transform.position[0]).toBe(6);
   });
 
   it('preserves command log and undo history when clearing the scene', async () => {

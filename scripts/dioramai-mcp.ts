@@ -105,6 +105,21 @@ const tools: ToolDefinition[] = [
     }, ['nodeId', 'patch']),
   },
   {
+    name: 'update_environment',
+    description: 'Apply a deterministic UPDATE_ENVIRONMENT command for scene-level HDRI lighting.',
+    inputSchema: objectSchema({
+      patch: objectSchema({
+        hdriUri: { anyOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] },
+        enabled: { type: 'boolean' },
+        showBackground: { type: 'boolean' },
+        intensity: { type: 'number', minimum: 0 },
+        rotationY: { type: 'number' },
+        backgroundColor: { type: 'string' },
+      }),
+      dryRun: { type: 'boolean' },
+    }, ['patch']),
+  },
+  {
     name: 'export_r3f',
     description: 'Export the shared scene to the project generated R3F sync module.',
     inputSchema: objectSchema({

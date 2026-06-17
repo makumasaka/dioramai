@@ -15,6 +15,7 @@ import {
   postBridgeLoadScene,
   postBridgeRemoveBehavior,
   postBridgeSetNodeSemantics,
+  postBridgeUpdateEnvironment,
   postBridgeUpdateTransform,
 } from '../bridge/bridgeClient';
 
@@ -22,6 +23,33 @@ const HISTORY_LIMIT = 100;
 const LOG_LIMIT = 200;
 
 let logSeq = 0;
+let bridgeMutationQueue: Promise<void> = Promise.resolve();
+
+type BridgeMutationResult =
+  | { ok: true; data: unknown }
+  | { ok: false; error: { message: string } };
+
+const errorMessage = (error: unknown): string =>
+  error instanceof Error ? error.message : String(error);
+
+const enqueueBridgeMutation = (
+  operation: () => Promise<BridgeMutationResult>,
+  handlers: {
+    onBridgeError: (message: string) => void;
+    onTransportError: (message: string) => void;
+  },
+): void => {
+  bridgeMutationQueue = bridgeMutationQueue
+    .catch(() => undefined)
+    .then(async () => {
+      try {
+        const result = await operation();
+        if (!result.ok) handlers.onBridgeError(result.error.message);
+      } catch (error) {
+        handlers.onTransportError(errorMessage(error));
+      }
+    });
+};
 
 export interface CommandLogEntry {
   id: string;
@@ -128,24 +156,22 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   bridgeSessionKey: 0,
 
   dispatch: (command) => {
-    const state = get();
-    if (state.bridgeConnected && command.type !== 'SET_SELECTION') {
-      if (command.type === 'UPDATE_TRANSFORM') {
-        void postBridgeUpdateTransform(command)
-          .then((result) => {
-            if (result.ok) return;
-            get().setBridgeStatus(false, result.error.message);
-            get().dispatch(command);
-          })
-          .catch((error) => {
-            get().setBridgeStatus(false, error instanceof Error ? error.message : String(error));
-            get().dispatch(command);
-          });
-        return;
-      }
-      if (command.type === 'REPLACE_SCENE') {
-        const nextScene = applyCommand(state.scene, command);
-        if (nextScene === state.scene) return;
+    const syncSceneToBridge = (scene: Scene) => {
+      enqueueBridgeMutation(
+        () => postBridgeLoadScene(serializeScene(scene)),
+        {
+          onBridgeError: (message) => get().setBridgeStatus(true, message),
+          onTransportError: (message) => get().setBridgeStatus(false, message),
+        },
+      );
+    };
+
+    const applyLocalCommand = (localCommand: Command): Scene | null => {
+      const localState = get();
+      const nextScene = applyCommand(localState.scene, localCommand);
+      if (nextScene === localState.scene) return null;
+
+      if (localCommand.type === 'REPLACE_SCENE') {
         set({
           scene: nextScene,
           baseScene: cloneScene(nextScene),
@@ -157,103 +183,130 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
           timelineCommands: [],
           timelineError: null,
         });
-        void postBridgeLoadScene(serializeScene(nextScene))
-          .then((result) => {
-            if (result.ok) return;
-            get().setBridgeStatus(false, result.error.message);
-          })
-          .catch((error) => {
-            get().setBridgeStatus(false, error instanceof Error ? error.message : String(error));
-          });
+        return nextScene;
+      }
+
+      const tag = getCoalesceTag(localCommand);
+      const shouldCoalesce = sameTag(localState.lastTag, tag) && localState.past.length > 0;
+
+      const nextPast = shouldCoalesce
+        ? localState.past
+        : pushPast(localState.past, localState.scene);
+
+      set({
+        scene: nextScene,
+        past: nextPast,
+        future: [],
+        lastTag: tag,
+        timelineError: null,
+        commandLog:
+          localCommand.type === 'SET_SELECTION'
+            ? localState.commandLog
+            : pushLog(localState.commandLog, localCommand),
+        timelineCommands:
+          localCommand.type === 'SET_SELECTION'
+            ? localState.timelineCommands
+            : [...localState.timelineCommands, localCommand],
+      });
+      return nextScene;
+    };
+
+    const applyLocalAndSync = (localCommand: Command) => {
+      const nextScene = applyLocalCommand(localCommand);
+      if (nextScene && get().bridgeConnected && localCommand.type !== 'SET_SELECTION') {
+        syncSceneToBridge(nextScene);
+      }
+    };
+
+    const state = get();
+    if (state.bridgeConnected && command.type !== 'SET_SELECTION') {
+      if (command.type === 'UPDATE_TRANSFORM') {
+        enqueueBridgeMutation(
+          () => postBridgeUpdateTransform(command),
+          {
+            onBridgeError: (message) => {
+              get().setBridgeStatus(true, message);
+              applyLocalAndSync(command);
+            },
+            onTransportError: (message) => {
+              get().setBridgeStatus(false, message);
+              applyLocalCommand(command);
+            },
+          },
+        );
+        return;
+      }
+      if (command.type === 'UPDATE_ENVIRONMENT') {
+        enqueueBridgeMutation(
+          () => postBridgeUpdateEnvironment(command),
+          {
+            onBridgeError: (message) => {
+              get().setBridgeStatus(true, message);
+              applyLocalAndSync(command);
+            },
+            onTransportError: (message) => {
+              get().setBridgeStatus(false, message);
+              applyLocalCommand(command);
+            },
+          },
+        );
+        return;
+      }
+      if (command.type === 'REPLACE_SCENE') {
+        const nextScene = applyLocalCommand(command);
+        if (nextScene) syncSceneToBridge(nextScene);
         return;
       }
       if (command.type === 'SET_NODE_SEMANTICS') {
-        void postBridgeSetNodeSemantics(command)
-          .then((result) => {
-            if (result.ok) return;
-            get().setBridgeStatus(false, result.error.message);
-            get().dispatch(command);
-          })
-          .catch((error) => {
-            get().setBridgeStatus(false, error instanceof Error ? error.message : String(error));
-            get().dispatch(command);
-          });
+        enqueueBridgeMutation(
+          () => postBridgeSetNodeSemantics(command),
+          {
+            onBridgeError: (message) => {
+              get().setBridgeStatus(true, message);
+              applyLocalAndSync(command);
+            },
+            onTransportError: (message) => {
+              get().setBridgeStatus(false, message);
+              applyLocalCommand(command);
+            },
+          },
+        );
         return;
       }
       if (command.type === 'ADD_BEHAVIOR') {
-        void postBridgeAddBehavior(command)
-          .then((result) => {
-            if (result.ok) return;
-            get().setBridgeStatus(false, result.error.message);
-            get().dispatch(command);
-          })
-          .catch((error) => {
-            get().setBridgeStatus(false, error instanceof Error ? error.message : String(error));
-            get().dispatch(command);
-          });
+        enqueueBridgeMutation(
+          () => postBridgeAddBehavior(command),
+          {
+            onBridgeError: (message) => {
+              get().setBridgeStatus(true, message);
+              applyLocalAndSync(command);
+            },
+            onTransportError: (message) => {
+              get().setBridgeStatus(false, message);
+              applyLocalCommand(command);
+            },
+          },
+        );
         return;
       }
       if (command.type === 'REMOVE_BEHAVIOR') {
-        void postBridgeRemoveBehavior(command)
-          .then((result) => {
-            if (result.ok) return;
-            get().setBridgeStatus(false, result.error.message);
-            get().dispatch(command);
-          })
-          .catch((error) => {
-            get().setBridgeStatus(false, error instanceof Error ? error.message : String(error));
-            get().dispatch(command);
-          });
+        enqueueBridgeMutation(
+          () => postBridgeRemoveBehavior(command),
+          {
+            onBridgeError: (message) => {
+              get().setBridgeStatus(true, message);
+              applyLocalAndSync(command);
+            },
+            onTransportError: (message) => {
+              get().setBridgeStatus(false, message);
+              applyLocalCommand(command);
+            },
+          },
+        );
         return;
       }
     }
-    const nextScene = applyCommand(state.scene, command);
-    if (nextScene === state.scene) return;
-
-    // Commands that reach here had no dedicated bridge endpoint above.
-    // Push the resulting scene to the bridge so it stays in sync with
-    // operations like DELETE_NODE, DUPLICATE_NODE, ADD_NODE, SET_PARENT, etc.
-    if (state.bridgeConnected && command.type !== 'SET_SELECTION') {
-      void postBridgeLoadScene(serializeScene(nextScene)).catch(() => undefined);
-    }
-
-    if (command.type === 'REPLACE_SCENE') {
-      set({
-        scene: nextScene,
-        baseScene: cloneScene(nextScene),
-        gizmoMode: 'translate',
-        past: [],
-        future: [],
-        lastTag: null,
-        commandLog: [],
-        timelineCommands: [],
-        timelineError: null,
-      });
-      return;
-    }
-
-    const tag = getCoalesceTag(command);
-    const shouldCoalesce = sameTag(state.lastTag, tag) && state.past.length > 0;
-
-    const nextPast = shouldCoalesce
-      ? state.past
-      : pushPast(state.past, state.scene);
-
-    set({
-      scene: nextScene,
-      past: nextPast,
-      future: [],
-      lastTag: tag,
-      timelineError: null,
-      commandLog:
-        command.type === 'SET_SELECTION'
-          ? state.commandLog
-          : pushLog(state.commandLog, command),
-      timelineCommands:
-        command.type === 'SET_SELECTION'
-          ? state.timelineCommands
-          : [...state.timelineCommands, command],
-    });
+    applyLocalAndSync(command);
   },
 
   applyBridgeScene: (incomingScene, command) => {
@@ -402,7 +455,13 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
       lastTag: null,
     });
     if (state.bridgeConnected) {
-      void postBridgeLoadScene(serializeScene(nextScene)).catch(() => undefined);
+      enqueueBridgeMutation(
+        () => postBridgeLoadScene(serializeScene(nextScene)),
+        {
+          onBridgeError: (message) => get().setBridgeStatus(true, message),
+          onTransportError: (message) => get().setBridgeStatus(false, message),
+        },
+      );
     }
   },
 

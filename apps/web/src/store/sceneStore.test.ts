@@ -1,21 +1,29 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { exportSceneToR3fJsx } from '@dioramai/export-r3f';
-import { getStarterScene, parseSceneJson } from '@dioramai/core';
+import { createLightNode, getStarterScene, parseSceneJson } from '@dioramai/core';
 import { useSceneStore } from './sceneStore';
 
 vi.mock('../bridge/bridgeClient', async (importActual) => ({
   ...(await importActual<typeof import('../bridge/bridgeClient')>()),
   postBridgeLoadScene: vi.fn().mockResolvedValue({ ok: true, data: {} }),
   postBridgeUpdateTransform: vi.fn().mockResolvedValue({ ok: true, data: {} }),
+  postBridgeUpdateEnvironment: vi.fn().mockResolvedValue({ ok: true, data: {} }),
   postBridgeSetNodeSemantics: vi.fn().mockResolvedValue({ ok: true, data: {} }),
   postBridgeAddBehavior: vi.fn().mockResolvedValue({ ok: true, data: {} }),
   postBridgeRemoveBehavior: vi.fn().mockResolvedValue({ ok: true, data: {} }),
 }));
 
+const flushBridgeQueue = async () => {
+  for (let i = 0; i < 10; i += 1) await Promise.resolve();
+};
+
 describe('sceneStore — history + command log regression', () => {
-  beforeEach(() => {
-    useSceneStore.getState().reset();
+  beforeEach(async () => {
+    await flushBridgeQueue();
+    vi.clearAllMocks();
     useSceneStore.setState({ bridgeConnected: false, bridgeLastError: null });
+    useSceneStore.getState().reset();
+    await flushBridgeQueue();
   });
 
   it('does not append SET_SELECTION to the command log', () => {
@@ -95,6 +103,7 @@ describe('sceneStore — history + command log regression', () => {
 
     useSceneStore.setState({ bridgeConnected: true });
     useSceneStore.getState().clearScene();
+    await flushBridgeQueue();
 
     expect(Object.keys(useSceneStore.getState().scene.nodes)).toHaveLength(1);
     expect(postBridgeLoadScene).toHaveBeenCalledTimes(1);
@@ -163,6 +172,7 @@ describe('sceneStore — history + command log regression', () => {
     expect(useSceneStore.getState().scene.nodes[cubeId]).toBeDefined();
 
     useSceneStore.getState().dispatch({ type: 'DELETE_NODE', nodeId: cubeId });
+    await flushBridgeQueue();
 
     // Node removed from local scene immediately
     expect(useSceneStore.getState().scene.nodes[cubeId]).toBeUndefined();
@@ -182,6 +192,83 @@ describe('sceneStore — history + command log regression', () => {
     useSceneStore.getState().select('default-cube-1');
 
     expect(postBridgeLoadScene).not.toHaveBeenCalled();
+  });
+
+  it('forwards UPDATE_ENVIRONMENT to the dedicated bridge route when connected', async () => {
+    const { postBridgeLoadScene, postBridgeUpdateEnvironment } = await import('../bridge/bridgeClient');
+    vi.mocked(postBridgeLoadScene).mockClear();
+    vi.mocked(postBridgeUpdateEnvironment).mockClear();
+
+    useSceneStore.setState({ bridgeConnected: true });
+    const command = {
+      type: 'UPDATE_ENVIRONMENT' as const,
+      patch: { hdriUri: '/assets/hdri/studio.hdr', enabled: true },
+    };
+    useSceneStore.getState().dispatch(command);
+    await flushBridgeQueue();
+
+    expect(postBridgeUpdateEnvironment).toHaveBeenCalledTimes(1);
+    expect(postBridgeUpdateEnvironment).toHaveBeenCalledWith(command);
+    expect(postBridgeLoadScene).not.toHaveBeenCalled();
+  });
+
+  it('queues transform updates behind scene syncs for newly added light nodes', async () => {
+    const { postBridgeLoadScene, postBridgeUpdateTransform } = await import('../bridge/bridgeClient');
+    let resolveLoadScene: (value: Awaited<ReturnType<typeof postBridgeLoadScene>>) => void = () => undefined;
+    vi.mocked(postBridgeLoadScene).mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveLoadScene = resolve;
+      }),
+    );
+
+    useSceneStore.setState({ bridgeConnected: true });
+    const rootId = useSceneStore.getState().scene.rootId;
+    const light = createLightNode('point');
+
+    useSceneStore.getState().dispatch({ type: 'ADD_NODE', parentId: rootId, node: light });
+    useSceneStore.getState().dispatch({
+      type: 'UPDATE_TRANSFORM',
+      nodeId: light.id,
+      patch: { position: [1, 2, 3] },
+    });
+    await flushBridgeQueue();
+
+    expect(postBridgeLoadScene).toHaveBeenCalledTimes(1);
+    expect(postBridgeUpdateTransform).not.toHaveBeenCalled();
+
+    resolveLoadScene({ ok: true, data: { scene: useSceneStore.getState().scene, changed: true } });
+    await flushBridgeQueue();
+
+    expect(postBridgeUpdateTransform).toHaveBeenCalledTimes(1);
+    expect(postBridgeUpdateTransform).toHaveBeenCalledWith({
+      type: 'UPDATE_TRANSFORM',
+      nodeId: light.id,
+      patch: { position: [1, 2, 3] },
+    });
+  });
+
+  it('keeps the bridge connected when a command validation error falls back to full scene sync', async () => {
+    const { postBridgeLoadScene, postBridgeUpdateTransform } = await import('../bridge/bridgeClient');
+    vi.mocked(postBridgeUpdateTransform).mockResolvedValueOnce({
+      ok: false,
+      error: {
+        code: 'VALIDATION_ERROR',
+        message: 'UPDATE_TRANSFORM nodeId does not exist',
+      },
+    });
+
+    useSceneStore.setState({ bridgeConnected: true, bridgeLastError: null });
+    useSceneStore.getState().dispatch({
+      type: 'UPDATE_TRANSFORM',
+      nodeId: 'default-cube-1',
+      patch: { position: [4, 0.5, 0] },
+    });
+    await flushBridgeQueue();
+
+    expect(useSceneStore.getState().bridgeConnected).toBe(true);
+    expect(useSceneStore.getState().bridgeLastError).toBe('UPDATE_TRANSFORM nodeId does not exist');
+    expect(useSceneStore.getState().scene.nodes['default-cube-1']?.transform.position).toEqual([4, 0.5, 0]);
+    expect(postBridgeLoadScene).toHaveBeenCalledTimes(1);
   });
 
   it('recomputes scene from edited timeline commands', () => {

@@ -44,7 +44,7 @@ export {
 export { getWorldMatrix, matrixToTransform } from './worldTransform';
 export type { CreateNodeInput } from './scene';
 export { applyCommand, applyCommandWithResult, applyReparent } from './commands';
-export type { Command, CommandResult } from './commands';
+export type { Command, CommandResult, EnvironmentPatch } from './commands';
 export {
   mergeTransform,
   transformEqual,

@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useSceneStore } from '../store/sceneStore';
+import { CommandHistory } from './CommandHistory';
 import {
   getParent,
   createId,
@@ -8,6 +9,7 @@ import {
   type SemanticRole,
   type SceneLight,
   type SceneEnvironment,
+  type EnvironmentPatch,
   type BehaviorDefinition,
   type BehaviorType,
   type NodeSemantics,
@@ -524,8 +526,25 @@ function EnvironmentPanel() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [bridgeConnected]);
 
-  const patch = (changes: Partial<SceneEnvironment>) => {
+  const patch = (changes: EnvironmentPatch) => {
     dispatch({ type: 'UPDATE_ENVIRONMENT', patch: changes });
+  };
+
+  const firstHdriUri = hdriList[0]?.uri;
+  const selectedHdriUri = environment.hdriUri ?? firstHdriUri;
+
+  const handleEnableChange = (enabled: boolean) => {
+    if (!enabled) {
+      patch({ enabled: false });
+      return;
+    }
+    if (!selectedHdriUri) {
+      setError('No HDRI files are available. Add an .hdr or .exr file first.');
+      patch({ enabled: false });
+      return;
+    }
+    setError(null);
+    patch({ enabled: true, hdriUri: selectedHdriUri });
   };
 
   const handleFile = async (file: File) => {
@@ -555,7 +574,7 @@ function EnvironmentPanel() {
         <input
           type="checkbox"
           checked={environment.enabled ?? false}
-          onChange={(e) => patch({ enabled: e.target.checked })}
+          onChange={(e) => handleEnableChange(e.target.checked)}
         />
       </div>
 
@@ -596,7 +615,14 @@ function EnvironmentPanel() {
         <select
           className="inspector__role-select"
           value={environment.hdriUri ?? ''}
-          onChange={(e) => patch({ hdriUri: e.target.value || undefined })}
+          onChange={(e) => {
+            const hdriUri = e.target.value || undefined;
+            patch(
+              hdriUri
+                ? { hdriUri, enabled: true }
+                : { hdriUri: null, enabled: false, showBackground: false },
+            );
+          }}
           disabled={!bridgeConnected}
         >
           <option value="">(none)</option>
@@ -641,7 +667,9 @@ function EnvironmentPanel() {
 
 // ─── Main Inspector ─────────────────────────────────────────────────────────
 
-export function Inspector() {
+type InspectorTab = 'inspector' | 'advanced';
+
+function InspectorContent() {
   const scene = useSceneStore((s) => s.scene);
   const dispatch = useSceneStore((s) => s.dispatch);
   const selectedId = scene.selection;
@@ -649,8 +677,7 @@ export function Inspector() {
 
   if (!node || !selectedId) {
     return (
-      <aside className="inspector">
-        <div className="inspector__header">Inspector</div>
+      <div className="inspector">
         <div className="inspector__empty">
           <p>No node selected.</p>
           <p className="inspector__hint">
@@ -658,7 +685,7 @@ export function Inspector() {
           </p>
         </div>
         <EnvironmentPanel />
-      </aside>
+      </div>
     );
   }
 
@@ -683,9 +710,7 @@ export function Inspector() {
     : null;
 
   return (
-    <aside className="inspector">
-      <div className="inspector__header">Inspector</div>
-
+    <div className="inspector">
       {hiddenAssetUri ? (
         <section className="inspector__section inspector__warning">
           <div className="inspector__section-title">Hidden Asset</div>
@@ -791,6 +816,34 @@ export function Inspector() {
           onChange={(scale) => update({ scale })}
         />
       </section>
+    </div>
+  );
+}
+
+export function Inspector() {
+  const [tab, setTab] = useState<InspectorTab>('inspector');
+
+  return (
+    <aside className="inspector-panel" aria-label="Inspector panel">
+      <div className="inspector-panel__tabs">
+        <button
+          type="button"
+          className={`inspector-panel__tab${tab === 'inspector' ? ' inspector-panel__tab--active' : ''}`}
+          onClick={() => setTab('inspector')}
+        >
+          Inspector
+        </button>
+        <button
+          type="button"
+          className={`inspector-panel__tab${tab === 'advanced' ? ' inspector-panel__tab--active' : ''}`}
+          onClick={() => setTab('advanced')}
+        >
+          Advanced
+        </button>
+      </div>
+      <div className="inspector-panel__body">
+        {tab === 'inspector' ? <InspectorContent /> : <CommandHistory />}
+      </div>
     </aside>
   );
 }

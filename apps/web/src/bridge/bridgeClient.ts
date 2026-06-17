@@ -143,6 +143,21 @@ const postJson = async <T>(path: string, body: unknown): Promise<BridgeResult<T>
   return response.json() as Promise<BridgeResult<T>>;
 };
 
+const readBridgeJson = async <T>(response: Response): Promise<BridgeResult<T>> => {
+  const text = await response.text();
+  try {
+    return JSON.parse(text) as BridgeResult<T>;
+  } catch {
+    return {
+      ok: false,
+      error: {
+        code: 'BRIDGE_RESPONSE_INVALID',
+        message: 'Bridge returned a non-JSON response. Check that the local bridge URL points to the Dioramai bridge, not an asset URL.',
+      },
+    };
+  }
+};
+
 export const fetchBridgeScene = async (): Promise<BridgeResult<{ scene: Scene }>> => {
   const response = await fetch(bridgeUrlFor('/scene'));
   return response.json() as Promise<BridgeResult<{ scene: Scene }>>;
@@ -163,6 +178,13 @@ export const postBridgeUpdateTransform = async (
 ): Promise<BridgeResult<{ scene: Scene; changed: boolean }>> =>
   postJson('/update-transform', {
     nodeId: command.nodeId,
+    patch: command.patch,
+  });
+
+export const postBridgeUpdateEnvironment = async (
+  command: Extract<Command, { type: 'UPDATE_ENVIRONMENT' }>,
+): Promise<BridgeResult<{ scene: Scene; changed: boolean }>> =>
+  postJson('/update-environment', {
     patch: command.patch,
   });
 
@@ -218,9 +240,8 @@ export const postBridgeImportGlbAsset = async (
   if (options.semanticRole) params.set('semanticRole', options.semanticRole);
   if (options.parentId) params.set('parentId', options.parentId);
   const token = getBridgeToken();
-  if (token) params.set('token', token);
 
-  const response = await fetch(`${getBridgeUrl()}/import-glb-asset?${params.toString()}`, {
+  const response = await fetch(bridgeUrlFor(`/import-glb-asset?${params.toString()}`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/octet-stream',
@@ -228,7 +249,7 @@ export const postBridgeImportGlbAsset = async (
     },
     body: file,
   });
-  return response.json() as Promise<BridgeResult<ImportGlbAssetResult>>;
+  return readBridgeJson<ImportGlbAssetResult>(response);
 };
 
 export const postBridgeRegisterGlbAssetPath = async (
@@ -267,8 +288,7 @@ export const postBridgeImportHdriAsset = async (
 ): Promise<BridgeResult<{ uri: string; fileName: string; workspaceRelativePath: string }>> => {
   const params = new URLSearchParams({ fileName: file.name });
   const token = getBridgeToken();
-  if (token) params.set('token', token);
-  const response = await fetch(`${getBridgeUrl()}/import-hdri-asset?${params.toString()}`, {
+  const response = await fetch(bridgeUrlFor(`/import-hdri-asset?${params.toString()}`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/octet-stream',
@@ -276,7 +296,5 @@ export const postBridgeImportHdriAsset = async (
     },
     body: file,
   });
-  return response.json() as Promise<
-    BridgeResult<{ uri: string; fileName: string; workspaceRelativePath: string }>
-  >;
+  return readBridgeJson<{ uri: string; fileName: string; workspaceRelativePath: string }>(response);
 };

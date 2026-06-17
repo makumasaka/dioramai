@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
 import { act, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import { CommandTimeline } from './CommandTimeline';
+import { CommandHistory } from './CommandHistory';
 import { TreeView } from './TreeView';
 import { Inspector } from './Inspector';
 import { useSceneStore } from '../store/sceneStore';
@@ -10,59 +10,20 @@ vi.mock('../viewport/Viewport', () => ({
   Viewport: () => <div data-testid="viewport-stub" />,
 }));
 
-// ─── CommandTimeline ───────────────────────────────────────────────────────────
+// ─── CommandHistory ────────────────────────────────────────────────────────────
 
-describe('CommandTimeline — collapsed drawer', () => {
-  const user = userEvent.setup();
-
+describe('CommandHistory', () => {
   beforeEach(() => {
     useSceneStore.getState().reset();
   });
 
-  it('renders in collapsed state by default — body cards are not shown', () => {
-    render(<CommandTimeline />);
-
-    const region = screen.getByRole('region', { name: /command timeline/i });
-    expect(region).toBeInTheDocument();
-    expect(screen.queryByText('No commands yet.')).not.toBeInTheDocument();
-    expect(screen.queryByText('UPDATE_TRANSFORM')).not.toBeInTheDocument();
-  });
-
-  it('shows compact step count in the collapsed bar', () => {
-    render(<CommandTimeline />);
-    expect(screen.getByText(/none/i)).toBeInTheDocument();
-  });
-
-  it('expand toggle opens the body and shows empty message', async () => {
-    render(<CommandTimeline />);
-
-    const toggle = screen.getByTitle('Expand command timeline');
-    await user.click(toggle);
-
+  it('shows empty state when no commands have been dispatched', () => {
+    render(<CommandHistory />);
     expect(screen.getByText('No commands yet.')).toBeInTheDocument();
+    expect(screen.getByText('none')).toBeInTheDocument();
   });
 
-  it('expand toggle changes aria-expanded attribute', async () => {
-    render(<CommandTimeline />);
-
-    const toggle = screen.getByTitle('Expand command timeline');
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'true');
-
-    await user.click(toggle);
-    expect(toggle).toHaveAttribute('aria-expanded', 'false');
-  });
-
-  it('Recompute button is not visible when there are no edited commands', () => {
-    render(<CommandTimeline />);
-    expect(screen.queryByRole('button', { name: /recompute/i })).not.toBeInTheDocument();
-  });
-
-  it('Recompute button is visible in the collapsed bar when editedCount > 0', async () => {
-    render(<CommandTimeline />);
-
+  it('lists committed commands newest first with summaries', async () => {
     await act(() => {
       useSceneStore.getState().dispatch({
         type: 'UPDATE_TRANSFORM',
@@ -71,95 +32,63 @@ describe('CommandTimeline — collapsed drawer', () => {
       });
     });
 
-    const toggle = screen.getByTitle('Expand command timeline');
-    await user.click(toggle);
+    render(<CommandHistory />);
+    const history = screen.getByRole('region', { name: /command history/i });
+    expect(within(history).getByText('UPDATE_TRANSFORM')).toBeInTheDocument();
+    expect(within(history).getByText('1 step')).toBeInTheDocument();
+  });
 
-    const timeline = screen.getByRole('region', { name: /command timeline/i });
-    const posX = within(timeline).getByRole('spinbutton', { name: /position x/i });
-    await user.clear(posX);
-    await user.type(posX, '5');
+  it('does not list SET_SELECTION commands', async () => {
+    await act(() => {
+      useSceneStore.getState().select('default-cube-1');
+    });
 
-    await user.click(toggle);
-
-    expect(screen.getByRole('button', { name: /recompute/i })).toBeInTheDocument();
+    render(<CommandHistory />);
+    expect(screen.getByText('No commands yet.')).toBeInTheDocument();
   });
 });
 
-// ─── TreeView — Runtime tab ────────────────────────────────────────────────────
+// ─── Inspector — tabs ──────────────────────────────────────────────────────────
 
-describe('TreeView — Runtime tab', () => {
+describe('Inspector — tabs', () => {
   const user = userEvent.setup();
 
   beforeEach(() => {
     useSceneStore.getState().reset();
   });
 
-  it('renders Outline and Runtime tabs', () => {
-    render(<TreeView />);
-    expect(screen.getByRole('button', { name: /outline/i })).toBeInTheDocument();
-    expect(screen.getByRole('button', { name: /runtime/i })).toBeInTheDocument();
+  it('renders Inspector and Advanced tabs', () => {
+    render(<Inspector />);
+    expect(screen.getByRole('button', { name: /inspector/i })).toBeInTheDocument();
+    expect(screen.getByRole('button', { name: /advanced/i })).toBeInTheDocument();
   });
 
-  it('Outline tab is active by default', () => {
-    render(<TreeView />);
-    const outline = screen.getByRole('button', { name: /outline/i });
-    expect(outline).toHaveClass('tree-view__tab--active');
+  it('Inspector tab is active by default', () => {
+    render(<Inspector />);
+    expect(screen.getByRole('button', { name: /^inspector$/i })).toHaveClass(
+      'inspector-panel__tab--active',
+    );
   });
 
-  it('Runtime tab shows empty state when no interactive nodes exist', async () => {
-    render(<TreeView />);
-    await user.click(screen.getByRole('button', { name: /runtime/i }));
-    expect(screen.getByText(/no interactive nodes yet/i)).toBeInTheDocument();
+  it('Advanced tab shows command history', async () => {
+    render(<Inspector />);
+    await user.click(screen.getByRole('button', { name: /advanced/i }));
+    expect(screen.getByRole('region', { name: /command history/i })).toBeInTheDocument();
+  });
+});
+
+// ─── TreeView ──────────────────────────────────────────────────────────────────
+
+describe('TreeView', () => {
+  beforeEach(() => {
+    useSceneStore.getState().reset();
   });
 
-  it('interactive nodes with behaviorRefs appear in Runtime tab', async () => {
-    await act(() => {
-      const { dispatch } = useSceneStore.getState();
-      dispatch({
-        type: 'SET_NODE_SEMANTICS',
-        nodeIds: ['default-cube-1'],
-        semantics: { role: 'product' },
-      });
-      dispatch({
-        type: 'ADD_BEHAVIOR',
-        behavior: {
-          id: 'beh-hover-1',
-          type: 'hover_highlight',
-          nodeIds: ['default-cube-1'],
-        },
-      });
-    });
-
+  it('renders outline header and scene hierarchy without Runtime tab', () => {
     render(<TreeView />);
-    await user.click(screen.getByRole('button', { name: /runtime/i }));
-
+    expect(screen.getByText('Outline')).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /runtime/i })).not.toBeInTheDocument();
     expect(screen.getByText('Cube 1')).toBeInTheDocument();
-    expect(screen.getAllByText(/hover/i).length).toBeGreaterThan(0);
-  });
-
-  it('nodes without role or behaviorRefs are excluded from Runtime tab', async () => {
-    render(<TreeView />);
-    await user.click(screen.getByRole('button', { name: /runtime/i }));
-
-    expect(screen.queryByText('Cube 1')).not.toBeInTheDocument();
-  });
-
-  it('clicking a Runtime node row dispatches selection', async () => {
-    await act(() => {
-      useSceneStore.getState().dispatch({
-        type: 'SET_NODE_SEMANTICS',
-        nodeIds: ['default-cube-1'],
-        semantics: { role: 'product' },
-      });
-    });
-
-    render(<TreeView />);
-    await user.click(screen.getByRole('button', { name: /runtime/i }));
-
-    const cubeBtn = screen.getByRole('button', { name: /cube 1/i });
-    await user.click(cubeBtn);
-
-    expect(useSceneStore.getState().scene.selection).toBe('default-cube-1');
   });
 });
 

@@ -13,6 +13,7 @@ describe('Dioramai MCP P0 tool contract', () => {
       'register_asset',
       'import_glb_asset',
       'update_transform',
+      'update_environment',
       'set_node_semantics',
       'add_behavior',
       'remove_behavior',
