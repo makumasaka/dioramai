@@ -1,6 +1,7 @@
 import { mkdir, mkdtemp, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { afterEach, describe, expect, it } from 'vitest';
 import { initializeDioramaiProject, type StartedBridgeServer } from '@dioramai/local-bridge';
 import { createEmptyScene, applyCommand, type SceneNode } from '@dioramai/core';
@@ -18,6 +19,13 @@ const createIo = () => {
     stdout: () => stdout,
     stderr: () => stderr,
   };
+};
+
+const currentCliVersion = async (): Promise<string> => {
+  const pkg = JSON.parse(
+    await readFile(resolve(fileURLToPath(import.meta.url), '../../package.json'), 'utf8'),
+  ) as { version: string };
+  return pkg.version;
 };
 
 const createHiddenAndroidScene = () => {
@@ -105,6 +113,10 @@ describe('dioramai init CLI', () => {
     expect(capture.stdout()).toContain('5. Open this repo in Cursor');
     expect(capture.stdout()).toContain('6. Reload Cursor MCP panel');
     expect(capture.stdout()).not.toContain('Pairing token:');
+    const packageJson = JSON.parse(await readFile(resolve(projectRoot, 'package.json'), 'utf8')) as {
+      devDependencies: Record<string, string>;
+    };
+    expect(packageJson.devDependencies.dioramai).toBe(`^${await currentCliVersion()}`);
     await expect(stat(resolve(projectRoot, '.dioramai'))).rejects.toThrow();
   });
 

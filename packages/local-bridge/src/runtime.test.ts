@@ -157,6 +157,7 @@ describe('Dioramai project onboarding', () => {
 
     const packageJson = JSON.parse(await readFile(resolve(initRoot, 'package.json'), 'utf8')) as {
       scripts: Record<string, string>;
+      devDependencies: Record<string, string>;
     };
     expect(packageJson.scripts).toMatchObject({
       dev: 'vite',
@@ -167,6 +168,7 @@ describe('Dioramai project onboarding', () => {
       'dioramai:dev': 'dioramai dev --open',
       'dioramai:doctor': 'dioramai doctor',
     });
+    expect(packageJson.devDependencies.dioramai).toBe('latest');
     const gitignore = await readFile(resolve(initRoot, '.gitignore'), 'utf8');
     expect(gitignore).toContain('node_modules/');
     expect(gitignore).toContain('dist/');
@@ -655,6 +657,56 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
       showBackground: false,
       intensity: 1,
       rotationY: 0,
+    });
+    const copied = await readFile(resolve(projectRoot, 'public/assets/hdri/quarry_cloudy_1k.hdr'), 'utf8');
+    expect(copied).toContain('#?RADIANCE');
+  });
+
+  it('backfills the bundled default HDRI into scenes with partial environment state', async () => {
+    await mkdir(resolve(projectRoot, 'src/generated'), { recursive: true });
+    await writeFile(
+      resolve(projectRoot, 'src/generated/dioramai.scene.json'),
+      serializeScene({
+        ...createEmptyScene('HDRI Partial Startup Test'),
+        environment: { enabled: false, showBackground: true },
+      }),
+      'utf8',
+    );
+    const bundledDir = resolve(projectRoot, 'bundle');
+    await mkdir(bundledDir, { recursive: true });
+    const bundledHdriPath = resolve(bundledDir, 'quarry_cloudy_1k.hdr');
+    await writeFile(bundledHdriPath, '#?RADIANCE\nfake-default-hdri', 'utf8');
+
+    const scene = await loadInitialBridgeScene({ projectRoot, bundledHdriPath });
+
+    expect(scene.environment).toEqual({
+      hdriUri: '/assets/hdri/quarry_cloudy_1k.hdr',
+      enabled: false,
+      showBackground: true,
+      intensity: 1,
+      rotationY: 0,
+    });
+    const copied = await readFile(resolve(projectRoot, 'public/assets/hdri/quarry_cloudy_1k.hdr'), 'utf8');
+    expect(copied).toContain('#?RADIANCE');
+  });
+
+  it('lists the bundled default HDRI by copying it into an empty project hdri dir', async () => {
+    const bundledDir = resolve(projectRoot, 'bundle');
+    await mkdir(bundledDir, { recursive: true });
+    const bundledHdriPath = resolve(bundledDir, 'quarry_cloudy_1k.hdr');
+    await writeFile(bundledHdriPath, '#?RADIANCE\nfake-default-hdri', 'utf8');
+    const runtime = new DioramaiBridgeRuntime(createEmptyScene('HDRI List Default Test'), {
+      projectRoot,
+      bundledHdriPath,
+    });
+
+    const listed = await runtime.listHdriAssets();
+
+    expect(listed.ok).toBe(true);
+    if (!listed.ok) return;
+    expect(listed.data.files).toContainEqual({
+      name: 'quarry_cloudy_1k.hdr',
+      uri: '/assets/hdri/quarry_cloudy_1k.hdr',
     });
     const copied = await readFile(resolve(projectRoot, 'public/assets/hdri/quarry_cloudy_1k.hdr'), 'utf8');
     expect(copied).toContain('#?RADIANCE');

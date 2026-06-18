@@ -644,6 +644,7 @@ export type DioramaiInitTemplate = 'vite-r3f' | 'config';
 export type DioramaiProjectInitOptions = {
   template?: DioramaiInitTemplate;
   force?: boolean;
+  dioramaiDependencyVersion?: string;
   /**
    * Absolute path to a bundled default HDRI to copy into the project hdri dir
    * on init. Supplied by the CLI, which ships the asset; when omitted or
@@ -815,24 +816,25 @@ const applyDefaultEnvironment = async (
     bundledHdriPath?: string;
   },
 ): Promise<Scene> => {
-  if (scene.environment !== undefined) return scene;
+  if (scene.environment?.hdriUri) return scene;
   const hdriUri = await ensureDefaultHdri(
     options.projectRoot,
     options.hdriDirRelative,
     options.bundledHdriPath,
   );
-  return hdriUri
-    ? {
-        ...scene,
-        environment: {
-          hdriUri,
-          enabled: true,
-          showBackground: false,
-          intensity: 1,
-          rotationY: 0,
-        },
-      }
-    : scene;
+  if (!hdriUri) return scene;
+  const existing = scene.environment;
+  return {
+    ...scene,
+    environment: {
+      hdriUri,
+      enabled: existing?.enabled ?? true,
+      showBackground: existing?.showBackground ?? false,
+      intensity: existing?.intensity ?? 1,
+      rotationY: existing?.rotationY ?? 0,
+      ...(existing?.backgroundColor !== undefined ? { backgroundColor: existing.backgroundColor } : {}),
+    },
+  };
 };
 
 const packageNameForRoot = (projectRoot: string): string => {
@@ -842,7 +844,7 @@ const packageNameForRoot = (projectRoot: string): string => {
 
 const jsonFile = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
 
-const vitePackageJson = (projectRoot: string): string => jsonFile({
+const vitePackageJson = (projectRoot: string, dioramaiDependencyVersion = 'latest'): string => jsonFile({
   name: packageNameForRoot(projectRoot),
   private: true,
   version: '0.0.0',
@@ -870,7 +872,7 @@ const vitePackageJson = (projectRoot: string): string => jsonFile({
     '@vitejs/plugin-react': '^6.0.1',
     typescript: '~6.0.2',
     vite: '^8.0.9',
-    dioramai: '^0.1.0',
+    dioramai: dioramaiDependencyVersion,
   },
 });
 
@@ -1158,7 +1160,7 @@ export const initializeDioramaiProject = async (
     }).code;
 
     if (template === 'vite-r3f') {
-      await writeProjectTextFile(projectRoot, 'package.json', vitePackageJson(projectRoot), force, wroteFiles);
+      await writeProjectTextFile(projectRoot, 'package.json', vitePackageJson(projectRoot, options.dioramaiDependencyVersion), force, wroteFiles);
       await writeProjectTextFile(projectRoot, '.gitignore', gitignoreFile(), force, wroteFiles);
       await writeProjectTextFile(projectRoot, 'index.html', indexHtml(), force, wroteFiles);
       await writeProjectTextFile(projectRoot, 'src/main.tsx', mainTsx(), force, wroteFiles);
@@ -1602,6 +1604,7 @@ export class DioramaiBridgeRuntime {
   private readonly hdriDirPath: string;
   private readonly hdriDirRelativePath: string;
   private readonly hdriUrlBase: string;
+  private readonly bundledHdriPath: string | undefined;
   private readonly codeWatchDebounceMs: number;
   private codeWatcher: FSWatcher | null = null;
   private codeWatchTimer: ReturnType<typeof setTimeout> | null = null;
@@ -1646,6 +1649,7 @@ export class DioramaiBridgeRuntime {
     this.generatedModulePath = resolve(this.projectRoot, generatedModuleRelativePath);
     this.assetDirPath = resolve(this.projectRoot, this.assetDirRelativePath);
     this.hdriDirPath = resolve(this.projectRoot, this.hdriDirRelativePath);
+    this.bundledHdriPath = options.bundledHdriPath;
     this.codeWatchDebounceMs = options.codeWatchDebounceMs ?? 100;
 
     for (const targetPath of [
@@ -2276,6 +2280,7 @@ export class DioramaiBridgeRuntime {
   /** Lists HDRI/EXR files available under the project hdri dir as public URIs. */
   async listHdriAssets(): Promise<BridgeResult<{ files: Array<{ name: string; uri: string }> }>> {
     try {
+      await ensureDefaultHdri(this.projectRoot, this.hdriDirRelativePath, this.bundledHdriPath);
       const entries = await readdir(this.hdriDirPath, { withFileTypes: true });
       const files = entries
         .filter((entry) => entry.isFile() && /\.(hdr|exr)$/i.test(entry.name))
