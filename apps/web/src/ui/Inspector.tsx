@@ -745,9 +745,9 @@ function InspectorContent() {
           currentRole={currentRole}
         />
         {semanticGroup ? (
-          <div className="inspector__row">
-            <span className="inspector__key">Group</span>
-            <span className="inspector__value inspector__value--mono">
+        <div className="inspector__row">
+          <span className="inspector__key">Group</span>
+          <span className="inspector__value inspector__value--mono">
               {semanticGroup.name}
             </span>
           </div>

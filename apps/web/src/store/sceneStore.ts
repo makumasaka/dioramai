@@ -101,6 +101,17 @@ const timelineToLog = (commands: Command[]): CommandLogEntry[] =>
     command,
   }));
 
+const shouldPreserveLocalSelection = (command?: Command): boolean =>
+  command !== undefined &&
+  command.type !== 'REPLACE_SCENE' &&
+  command.type !== 'SET_SELECTION';
+
+const preserveLocalSelection = (incomingScene: Scene, localScene: Scene): Scene => {
+  const selectedId = localScene.selection;
+  if (selectedId === null || incomingScene.nodes[selectedId] === undefined) return incomingScene;
+  return { ...incomingScene, selection: selectedId };
+};
+
 export type GizmoMode = 'translate' | 'rotate' | 'scale';
 
 export interface SceneState {
@@ -310,8 +321,11 @@ export const useSceneStore = create<SceneState>()((set, get) => ({
   },
 
   applyBridgeScene: (incomingScene, command) => {
-    const scene = cloneScene(incomingScene);
+    const incoming = cloneScene(incomingScene);
     set((state) => {
+      const scene = shouldPreserveLocalSelection(command)
+        ? preserveLocalSelection(incoming, state.scene)
+        : incoming;
       if (command === undefined || command.type === 'REPLACE_SCENE') {
         return {
           scene,

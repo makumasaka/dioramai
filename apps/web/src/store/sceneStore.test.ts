@@ -212,6 +212,35 @@ describe('sceneStore — history + command log regression', () => {
     expect(postBridgeLoadScene).not.toHaveBeenCalled();
   });
 
+  it('preserves local selection when a bridge transform scene echoes stale selection', () => {
+    const cubeId = 'default-cube-1';
+    useSceneStore.getState().select(cubeId);
+    const selectedScene = useSceneStore.getState().scene;
+    const staleBridgeScene = {
+      ...selectedScene,
+      selection: selectedScene.rootId,
+      nodes: {
+        ...selectedScene.nodes,
+        [cubeId]: {
+          ...selectedScene.nodes[cubeId]!,
+          transform: {
+            ...selectedScene.nodes[cubeId]!.transform,
+            position: [3, 0.5, 0] as [number, number, number],
+          },
+        },
+      },
+    };
+
+    useSceneStore.getState().applyBridgeScene(staleBridgeScene, {
+      type: 'UPDATE_TRANSFORM',
+      nodeId: cubeId,
+      patch: { position: [3, 0.5, 0] },
+    });
+
+    expect(useSceneStore.getState().scene.selection).toBe(cubeId);
+    expect(useSceneStore.getState().scene.nodes[cubeId]?.transform.position).toEqual([3, 0.5, 0]);
+  });
+
   it('queues transform updates behind scene syncs for newly added light nodes', async () => {
     const { postBridgeLoadScene, postBridgeUpdateTransform } = await import('../bridge/bridgeClient');
     let resolveLoadScene: (value: Awaited<ReturnType<typeof postBridgeLoadScene>>) => void = () => undefined;
