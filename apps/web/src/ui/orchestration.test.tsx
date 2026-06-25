@@ -1,9 +1,10 @@
 import { describe, expect, it, beforeEach, vi } from 'vitest';
-import { act, render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { CommandHistory } from './CommandHistory';
 import { TreeView } from './TreeView';
 import { Inspector } from './Inspector';
+import { createNode } from '@dioramai/core';
 import { useSceneStore } from '../store/sceneStore';
 
 vi.mock('../viewport/Viewport', () => ({
@@ -89,6 +90,67 @@ describe('TreeView', () => {
     expect(screen.getByText('Outline')).toBeInTheDocument();
     expect(screen.queryByRole('button', { name: /runtime/i })).not.toBeInTheDocument();
     expect(screen.getByText('Cube 1')).toBeInTheDocument();
+  });
+
+  it('collapses and expands nested node layers without changing scene history', async () => {
+    const user = userEvent.setup();
+    const rootId = useSceneStore.getState().scene.rootId;
+    useSceneStore.getState().dispatch({
+      type: 'ADD_NODE',
+      parentId: rootId,
+      node: createNode({ id: 'parent-group', name: 'Parent Group', type: 'group' }),
+    });
+    useSceneStore.getState().dispatch({
+      type: 'ADD_NODE',
+      parentId: 'parent-group',
+      node: createNode({ id: 'nested-mesh', name: 'Nested Mesh', type: 'mesh' }),
+    });
+    const logLength = useSceneStore.getState().commandLog.length;
+
+    render(<TreeView />);
+
+    expect(screen.getByText('Nested Mesh')).toBeInTheDocument();
+    await user.click(screen.getByRole('button', { name: 'Collapse Parent Group' }));
+    expect(screen.queryByText('Nested Mesh')).not.toBeInTheDocument();
+    expect(useSceneStore.getState().commandLog).toHaveLength(logLength);
+
+    await user.click(screen.getByRole('button', { name: 'Expand Parent Group' }));
+    expect(screen.getByText('Nested Mesh')).toBeInTheDocument();
+    expect(useSceneStore.getState().commandLog).toHaveLength(logLength);
+  });
+
+  it('reparents nodes by dragging a row onto a new parent row', () => {
+    const rootId = useSceneStore.getState().scene.rootId;
+    useSceneStore.getState().dispatch({
+      type: 'ADD_NODE',
+      parentId: rootId,
+      node: createNode({ id: 'target-group', name: 'Target Group', type: 'group' }),
+    });
+
+    render(<TreeView />);
+
+    const draggedRow = screen.getByText('Cube 1').closest('.tree-row');
+    const targetRow = screen.getByText('Target Group').closest('.tree-row');
+    expect(draggedRow).not.toBeNull();
+    expect(targetRow).not.toBeNull();
+
+    const values = new Map<string, string>();
+    const dataTransfer = {
+      effectAllowed: '',
+      dropEffect: '',
+      setData: vi.fn((type: string, value: string) => values.set(type, value)),
+      getData: vi.fn((type: string) => values.get(type) ?? ''),
+    };
+
+    fireEvent.dragStart(draggedRow!, { dataTransfer });
+    fireEvent.dragOver(targetRow!, { dataTransfer });
+    fireEvent.drop(targetRow!, { dataTransfer });
+
+    const scene = useSceneStore.getState().scene;
+    expect(scene.nodes['target-group']?.children).toContain('default-cube-1');
+    expect(scene.nodes[rootId]?.children).not.toContain('default-cube-1');
+    expect(scene.selection).toBe('default-cube-1');
+    expect(useSceneStore.getState().commandLog.at(-1)?.command.type).toBe('SET_PARENT');
   });
 });
 
