@@ -1,6 +1,9 @@
 {
   "name": "@dioramai/monorepo",
   "private": true,
+  "engines": {
+    "node": ">=20"
+  },
   "workspaces": [
     "apps/*",
     "packages/*"
@@ -17,5 +20,8 @@
   },
   "devDependencies": {
     "tsx": "^4.21.0"
+  },
+  "overrides": {
+    "esbuild": "^0.28.1"
   }
 }

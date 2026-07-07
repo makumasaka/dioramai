@@ -71,11 +71,11 @@ GLB/GLTF files, and then registered with Dioramai.
 | `packages/core` | Pure command reducer, scene helpers, deterministic transforms |
 | `packages/r3f-bridge` | R3F runtime projection, selection, registry, transform command translation |
 | `packages/export-r3f` | Deterministic R3F module export and generated scene metadata parsing |
-| `packages/agent-interface` | Narrow command/session surface for tools |
 | `packages/local-bridge` | Local filesystem-aware bridge for safe repo sync |
 | `packages/cli` | `npx dioramai` init/doctor/dev/export/validate commands |
 | `packages/mcp` | Narrow MCP-facing package that proxies to the local bridge |
 | `packages/ingestion` | Local GLB/GLTF registration helpers |
+| `packages/examples` | Example scene JSON documents and starter kits |
 | `apps/web` | Vite runtime debug shell for viewport, hierarchy, inspector, code sync status |
 | `apps/demo-export` | Sample generated R3F app used for local preview |
 
@@ -113,10 +113,26 @@ Default generated output:
 - `src/generated/dioramai.scene.json`
 - `public/assets/models/*`
 
+## Performance Settings
+
+The studio's Advanced tab includes a Performance section (shadows, shadow map
+size, max pixel ratio, render-on-demand, antialias, GPU power preference).
+These settings are stored on the canonical scene (`scene.renderSettings`),
+applied live to the studio viewport, and exported to the generated module as
+the `dioramaiCanvasProps` constant, which the scaffolded `DioramaiApp.tsx`
+spreads onto its `<Canvas>`.
+
+## Contributing
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for setup, test expectations, and the PR
+process, and [SECURITY.md](SECURITY.md) for how to report vulnerabilities.
+Node.js 20+ is required (`.nvmrc` is provided).
+
 ## More Docs
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [Runtime Sync MVP](docs/MVP_RUNTIME_SYNC.md)
+- [Commands](docs/COMMANDS.md)
 - [R3F Export](docs/EXPORT.md)
 - [MCP Tool Contract](docs/mcp-tools.md)
 

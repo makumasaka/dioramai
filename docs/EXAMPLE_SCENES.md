@@ -110,4 +110,4 @@ docs and tests.
 
 - [ARCHITECTURE.md](ARCHITECTURE.md) - how commands update `Scene`.
 - [EXPORT.md](EXPORT.md) - JSON and R3F export contracts and limitations.
-- `packages/agent-interface/examples/prompt-to-command.md` - mapping natural language to validated commands.
+- [COMMANDS.md](COMMANDS.md) - the validated command reference for mapping natural language to scene mutations.

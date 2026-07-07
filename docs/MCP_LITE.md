@@ -1,13 +1,18 @@
 # MCP-Lite
 
-MCP-lite is a library-level proof of the future MCP surface. It proves the
+> **Historical document.** MCP-lite and the `@dioramai/agent-interface`
+> package it described have been removed. The live agent surface is the MCP
+> tool contract in [`docs/mcp-tools.md`](mcp-tools.md), implemented by
+> `@dioramai/mcp` (a typed HTTP client for the local bridge) plus the stdio
+> proxy in `scripts/dioramai-mcp.ts` and the `dioramai mcp` CLI command.
+> Command validation now lives in `packages/core/src/commandSchema.ts`.
+> The notes below are retained for design history.
+
+MCP-lite was a library-level proof of the future MCP surface. It proved the
 agent workflow without a server transport:
 
 Agent intent -> MCP-lite facade -> validated Dioramai commands -> dry-run ->
 apply -> inspect result -> JSON/R3F export.
-
-The implementation lives in `packages/agent-interface/src/mcpLite.ts` and is
-re-exported by `@dioramai/mcp` through the existing package re-export.
 
 ## Scope
 

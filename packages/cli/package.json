@@ -11,11 +11,11 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/mkumasaka/dioramai.git"
+    "url": "git+https://github.com/makumasaka/dioramai.git"
   },
   "homepage": "https://dioramai.design",
   "bugs": {
-    "url": "https://github.com/mkumasaka/dioramai/issues"
+    "url": "https://github.com/makumasaka/dioramai/issues"
   },
   "files": [
     "dist",
@@ -44,7 +44,7 @@
   "dependencies": {},
   "devDependencies": {
     "@types/node": "^24.12.2",
-    "esbuild": "^0.27.7",
+    "esbuild": "^0.28.1",
     "tsx": "^4.21.0",
     "typescript": "~6.0.2",
     "vitest": "^3.2.4"

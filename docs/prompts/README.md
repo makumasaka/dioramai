@@ -10,9 +10,9 @@ This folder is reserved for **versioned prompts**, golden “intent → command�
 ## Conventions (TODO as harness lands)
 
 - One scenario per subdirectory or numbered file.
-- Reference `@dioramai/agent-interface` for validated command shapes; never duplicate the `Command` union in free text without linking to `docs/COMMANDS.md`.
+- Reference `CommandSchema` in `packages/core/src/commandSchema.ts` for validated command shapes; never duplicate the `Command` union in free text without linking to `docs/COMMANDS.md`.
 
 ## Related
 
-- [packages/agent-interface/examples/prompt-to-command.md](../../packages/agent-interface/examples/prompt-to-command.md)
+- [docs/COMMANDS.md](../COMMANDS.md)
 - [AGENTS.md](../../AGENTS.md)

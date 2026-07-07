@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components -- retained module is not mounted, so fast refresh does not apply */
 import type { Scene, SceneNode, BehaviorDefinition } from '@dioramai/core';
 
 /** Retained for post-MVP Runtime panel; not mounted in the default TreeView shell. */

@@ -4,9 +4,9 @@ These are **suggested** starting points for contributors. They are not all filed
 
 ## Documentation and examples
 
-1. **Static example JSON** — Add one or more `*.json` files under `packages/examples/scenes/` (create the directory) matching the `dioramai-scene` wrapper, plus a short note in that package’s README on how to load them. Aligns with the TODO in `packages/examples/src/index.ts`.
+1. **More example scenes** — `packages/examples/scenes/` already contains a few `*.json` scenes matching the `dioramai-scene` wrapper. Add new ones (different lighting setups, GLB-based layouts) plus a short note in that package's README on how to load them.
 
-2. **Link graph** — Cross-link `docs/EXAMPLE_SCENES.md` from agent-interface examples or vice versa where it reduces duplication.
+2. **Link graph** — Cross-link `docs/EXAMPLE_SCENES.md` from other docs (e.g. `docs/COMMANDS.md`, `packages/examples`) where it reduces duplication.
 
 ## Tests
 

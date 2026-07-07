@@ -125,11 +125,12 @@ MCP operates through `@dioramai/local-bridge`. It must not access the filesystem
 directly, run shell commands, evaluate JavaScript, touch Zustand state, or
 expose R3F/Three objects.
 
-## Deferred Packages
+## Removed Packages
 
-`@dioramai/agent-interface` is retained as a thin MCP-lite orchestration layer
-for scene editing workflows. It is not part of the P0 runtime-sync bridge or
-root scripts.
+`@dioramai/agent-interface` (the MCP-lite orchestration layer) has been
+removed. Its command validation moved to `packages/core/src/commandSchema.ts`,
+and its agent-facing role is covered by the MCP tool contract in
+`docs/mcp-tools.md` proxied through `@dioramai/local-bridge`.
 
 3D model generation (Meshy, Tripo, World Labs, etc.) is intentionally out of
 scope for Dioramai. Generation is handled by separate MCP servers (e.g. a

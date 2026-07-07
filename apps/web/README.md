@@ -1,73 +1,37 @@
-# React + TypeScript + Vite
+# Dioramai Web Shell
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+The hosted studio UI (deployed at [dioramai.design](https://dioramai.design)):
+a Vite + React + React Three Fiber app with the viewport, outline tree,
+inspector, command history, and code pane.
 
-Currently, two official plugins are available:
+## Run
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+From the monorepo root:
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the ESLint configuration
-
-If you are developing a production application, we recommend updating the configuration to enable type-aware lint rules:
-
-```js
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-
-      // Remove tseslint.configs.recommended and replace with this
-      tseslint.configs.recommendedTypeChecked,
-      // Alternatively, use this for stricter rules
-      tseslint.configs.strictTypeChecked,
-      // Optionally, add this for stylistic rules
-      tseslint.configs.stylisticTypeChecked,
-
-      // Other configs...
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+```bash
+npm install
+npm run dev        # Vite dev server on http://localhost:5173
 ```
 
-You can also install [eslint-plugin-react-x](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-x) and [eslint-plugin-react-dom](https://github.com/Rel1cx/eslint-react/tree/main/packages/plugins/eslint-plugin-react-dom) for React-specific lint rules:
+To pair with a local project, start a bridge in that project
+(`npx dioramai dev --open`) or open the shell with `?bridgeUrl=...&bridgeToken=...`
+query parameters printed by the CLI.
 
-```js
-// eslint.config.js
-import reactX from 'eslint-plugin-react-x'
-import reactDom from 'eslint-plugin-react-dom'
+## Structure
 
-export default defineConfig([
-  globalIgnores(['dist']),
-  {
-    files: ['**/*.{ts,tsx}'],
-    extends: [
-      // Other configs...
-      // Enable lint rules for React
-      reactX.configs['recommended-typescript'],
-      // Enable lint rules for React DOM
-      reactDom.configs.recommended,
-    ],
-    languageOptions: {
-      parserOptions: {
-        project: ['./tsconfig.node.json', './tsconfig.app.json'],
-        tsconfigRootDir: import.meta.dirname,
-      },
-      // other options...
-    },
-  },
-])
+| Path | Role |
+|------|------|
+| `src/viewport/` | R3F `<Canvas>`, environment, grid, `RuntimeScene` mount |
+| `src/ui/` | Inspector (with Advanced tab: performance settings + command history), toolbar, tree view, code pane |
+| `src/store/sceneStore.ts` | Zustand store: canonical scene, undo/redo, command log, bridge routing |
+| `src/bridge/` | HTTP + SSE client for the local bridge |
+
+All scene mutations must flow through commands dispatched to the store — never
+mutate scene objects or Three.js state directly (see `.cursor/rules/20-ui-architecture.mdc`).
+
+## Test / Lint
+
+```bash
+npm run test -w web
+npm run lint -w web
 ```

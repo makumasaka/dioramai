@@ -14,6 +14,8 @@ All participants are expected to follow the [Code of Conduct](CODE_OF_CONDUCT.md
 
 ## Development setup
 
+Node.js **20+** is required (see `.nvmrc`; run `nvm use` if you use nvm).
+
 ```bash
 npm install
 npm run dev          # web app
@@ -21,6 +23,14 @@ npm run test         # all package tests
 npm run typecheck    # TypeScript across workspaces
 npm run lint         # web ESLint
 ```
+
+Continuous integration (`.github/workflows/ci.yml`) runs typecheck, lint,
+tests, `npm audit --audit-level=high`, and the web build on every PR; running
+the same commands locally first saves a round-trip.
+
+Adding or changing a scene command or schema field? Follow the end-to-end
+checklist in `.cursor/skills/add-scene-command/SKILL.md` so validation,
+reducers, docs, and tests stay in sync.
 
 New behavior should include **tests** where it applies:
 
@@ -47,6 +57,10 @@ If coverage for an important edge case is intentionally deferred, say so in the 
 ## Good first issues
 
 See [docs/GOOD_FIRST_ISSUES.md](docs/GOOD_FIRST_ISSUES.md) for curated starter tasks.
+
+## Security
+
+Do not report security vulnerabilities in public issues — see [SECURITY.md](SECURITY.md).
 
 ## Questions
 

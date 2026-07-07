@@ -113,8 +113,8 @@ Expected:
 
 ## Vercel deployment (hosted shell)
 
-The hosted shell at `https://dioramai.design` is deployed via the `apps/web` Vite build.
-See [Task 5 in the MVP plan](../.cursor/plans/) for the step-by-step Vercel git integration setup.
+The hosted shell at `https://dioramai.design` is deployed via the `apps/web` Vite build,
+configured by `vercel.json` at the repo root.
 
 Key settings:
 - Root Directory: `/` (repo root)
