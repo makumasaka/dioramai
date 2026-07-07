@@ -1007,6 +1007,14 @@
   border-color: var(--accent);
 }
 
+.inspector__range {
+  flex: 1;
+  min-width: 0;
+  max-width: 45%;
+  accent-color: var(--accent);
+  cursor: pointer;
+}
+
 .behavior-controls {
   display: flex;
   flex-direction: column;

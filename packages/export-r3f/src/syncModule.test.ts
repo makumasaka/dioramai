@@ -124,6 +124,37 @@ describe('R3F sync module export', () => {
     );
   });
 
+  it('emits performance canvas props and roundtrips render settings', () => {
+    const scene: Scene = {
+      ...defaultFixtureScene,
+      renderSettings: {
+        maxPixelRatio: 1.5,
+        shadows: false,
+        shadowMapSize: 512,
+        renderOnDemand: true,
+        antialias: false,
+        powerPreference: 'high-performance',
+      },
+    };
+
+    const out = exportSceneToR3fSyncModule(scene).code;
+
+    expect(out).toContain('export const dioramaiCanvasProps');
+    expect(out).toContain('dioramaiRenderSettings.maxPixelRatio ?? 2');
+    expect(out).toContain("dioramaiRenderSettings.renderOnDemand ? 'demand' : 'always'");
+    expect(out).toContain('shadow-mapSize={dioramaiShadowMapSize}');
+
+    const parsed = parseSceneFromR3fSyncModule(out);
+    expect(parsed.ok).toBe(true);
+    if (!parsed.ok) return;
+    expect(parsed.scene.renderSettings).toEqual(scene.renderSettings);
+  });
+
+  it('emits canvas props even when render settings are absent', () => {
+    const out = exportSceneToR3fSyncModule(defaultFixtureScene).code;
+    expect(out).toContain('export const dioramaiCanvasProps');
+  });
+
   it('emits light runtime scaffolding and a gated Environment, roundtripping lights + environment', () => {
     const spot = createNode({
       id: 'spot',

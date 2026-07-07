@@ -6,6 +6,7 @@ export type {
   NodeType,
   SceneLight,
   SceneEnvironment,
+  SceneRenderSettings,
   SemanticRole,
   SemanticSource,
   Trait,
@@ -44,7 +45,7 @@ export {
 export { getWorldMatrix, matrixToTransform } from './worldTransform';
 export type { CreateNodeInput } from './scene';
 export { applyCommand, applyCommandWithResult, applyReparent } from './commands';
-export type { Command, CommandResult, EnvironmentPatch } from './commands';
+export type { Command, CommandResult, EnvironmentPatch, RenderSettingsPatch } from './commands';
 export {
   mergeTransform,
   transformEqual,

@@ -234,6 +234,32 @@ export const SceneEnvironmentSchema = z.object({
 
 export type SceneEnvironment = z.infer<typeof SceneEnvironmentSchema>;
 
+/**
+ * Scene-level rendering performance settings. All fields are optional; an
+ * absent field means "use the renderer default". Applied by the studio
+ * viewport and threaded into the generated R3F module's canvas props.
+ */
+export const SceneRenderSettingsSchema = z
+  .object({
+    /** Upper bound for device pixel ratio (render resolution). */
+    maxPixelRatio: z.number().finite().min(0.25).max(4).optional(),
+    /** Master toggle for shadow rendering. */
+    shadows: z.boolean().optional(),
+    /** Shadow map resolution in pixels per side for shadow-casting lights. */
+    shadowMapSize: z
+      .union([z.literal(256), z.literal(512), z.literal(1024), z.literal(2048), z.literal(4096)])
+      .optional(),
+    /** Render frames only when the scene changes instead of continuously. */
+    renderOnDemand: z.boolean().optional(),
+    /** MSAA antialiasing on the WebGL context. */
+    antialias: z.boolean().optional(),
+    /** WebGL power preference hint passed to the context. */
+    powerPreference: z.enum(['default', 'high-performance', 'low-power']).optional(),
+  })
+  .strict();
+
+export type SceneRenderSettings = z.infer<typeof SceneRenderSettingsSchema>;
+
 const SceneNodeBaseSchema = z.object({
   id: z.string().min(1),
   name: z.string(),
@@ -480,6 +506,7 @@ const SceneGraphBaseSchema = z.object({
   assets: z.record(z.string(), DioramaiAssetSchema).optional(),
   materials: z.record(z.string(), MetadataSchema).optional(),
   environment: SceneEnvironmentSchema.optional(),
+  renderSettings: SceneRenderSettingsSchema.optional(),
   layoutMetadata: MetadataSchema.optional(),
   metadata: MetadataSchema.optional(),
 });

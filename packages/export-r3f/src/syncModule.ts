@@ -41,6 +41,7 @@ const renderSyncModule = (
   `  | { kind: 'point'; intensity?: number; color?: string; distance?: number; decay?: number; castShadow?: boolean }\n` +
   `  | { kind: 'spot'; intensity?: number; color?: string; distance?: number; decay?: number; angle?: number; penumbra?: number; castShadow?: boolean };\n` +
   `type DioramaiEnvironment = { hdriUri?: string; enabled?: boolean; showBackground?: boolean; intensity?: number; rotationY?: number; backgroundColor?: string };\n` +
+  `type DioramaiRenderSettings = { maxPixelRatio?: number; shadows?: boolean; shadowMapSize?: number; renderOnDemand?: boolean; antialias?: boolean; powerPreference?: 'default' | 'high-performance' | 'low-power' };\n` +
   `type DioramaiNode = {\n` +
   `  id: string;\n` +
   `  name: string;\n` +
@@ -53,7 +54,7 @@ const renderSyncModule = (
   `  light?: DioramaiLight;\n` +
   `  [key: string]: unknown;\n` +
   `};\n` +
-  `type DioramaiSceneData = { rootId: string; nodes: Record<string, DioramaiNode>; environment?: DioramaiEnvironment; [key: string]: unknown };\n` +
+  `type DioramaiSceneData = { rootId: string; nodes: Record<string, DioramaiNode>; environment?: DioramaiEnvironment; renderSettings?: DioramaiRenderSettings; [key: string]: unknown };\n` +
   `type DioramaiSceneDocument = { format: 'dioramai-scene'; version: 2; data: DioramaiSceneData };\n\n` +
   `type GltfProjection = { nodeId: string; name: string; gltfPath: string; visible: boolean; transform: DioramaiNode['transform'] };\n\n` +
   `export const dioramaiScene = (\n` +
@@ -61,6 +62,18 @@ const renderSyncModule = (
   `${sceneJson}\n` +
   `${DIORAMAI_SCENE_BLOCK_END}\n` +
   `) as const satisfies DioramaiSceneDocument;\n\n` +
+  `const dioramaiRenderSettings: DioramaiRenderSettings = dioramaiScene.data.renderSettings ?? {};\n` +
+  `const dioramaiShadowMapSize: [number, number] = [dioramaiRenderSettings.shadowMapSize ?? 1024, dioramaiRenderSettings.shadowMapSize ?? 1024];\n\n` +
+  `/** Performance-tuned props for the host <Canvas>; spread these in your app shell. */\n` +
+  `export const dioramaiCanvasProps = {\n` +
+  `  shadows: dioramaiRenderSettings.shadows ?? true,\n` +
+  `  dpr: [Math.min(1, dioramaiRenderSettings.maxPixelRatio ?? 2), dioramaiRenderSettings.maxPixelRatio ?? 2] as [number, number],\n` +
+  `  frameloop: (dioramaiRenderSettings.renderOnDemand ? 'demand' : 'always') as 'demand' | 'always',\n` +
+  `  gl: {\n` +
+  `    antialias: dioramaiRenderSettings.antialias ?? true,\n` +
+  `    powerPreference: dioramaiRenderSettings.powerPreference ?? 'default',\n` +
+  `  },\n` +
+  `};\n\n` +
   `function vec3(value: Vec3): [number, number, number] {\n` +
   `  return [value[0], value[1], value[2]];\n` +
   `}\n\n` +
@@ -147,16 +160,16 @@ const renderSyncModule = (
   `  });\n` +
   `  const color = light.color ?? '#ffffff';\n` +
   `  if (light.kind === 'ambient') return <ambientLight color={color} intensity={light.intensity ?? 0.4} />;\n` +
-  `  if (light.kind === 'point') return <pointLight color={color} intensity={light.intensity ?? 1} distance={light.distance ?? 0} decay={light.decay ?? 2} castShadow={light.castShadow ?? false} />;\n` +
+  `  if (light.kind === 'point') return <pointLight color={color} intensity={light.intensity ?? 1} distance={light.distance ?? 0} decay={light.decay ?? 2} castShadow={light.castShadow ?? false} shadow-mapSize={dioramaiShadowMapSize} />;\n` +
   `  if (light.kind === 'spot') return (\n` +
   `    <>\n` +
-  `      <spotLight ref={lightRef} color={color} intensity={light.intensity ?? 1} distance={light.distance ?? 0} decay={light.decay ?? 2} angle={light.angle ?? Math.PI / 6} penumbra={light.penumbra ?? 0} castShadow={light.castShadow ?? false} />\n` +
+  `      <spotLight ref={lightRef} color={color} intensity={light.intensity ?? 1} distance={light.distance ?? 0} decay={light.decay ?? 2} angle={light.angle ?? Math.PI / 6} penumbra={light.penumbra ?? 0} castShadow={light.castShadow ?? false} shadow-mapSize={dioramaiShadowMapSize} />\n` +
   `      <object3D ref={targetRef} position={[0, 0, -1]} />\n` +
   `    </>\n` +
   `  );\n` +
   `  return (\n` +
   `    <>\n` +
-  `      <directionalLight ref={lightRef} color={color} intensity={light.intensity ?? 1} castShadow={light.castShadow ?? false} />\n` +
+  `      <directionalLight ref={lightRef} color={color} intensity={light.intensity ?? 1} castShadow={light.castShadow ?? false} shadow-mapSize={dioramaiShadowMapSize} />\n` +
   `      <object3D ref={targetRef} position={[0, 0, -1]} />\n` +
   `    </>\n` +
   `  );\n` +
@@ -208,7 +221,7 @@ const renderSyncModule = (
     ? `      {!environmentActive ? (\n` +
       `        <>\n` +
       `          <ambientLight intensity={0.4} />\n` +
-      `          <directionalLight castShadow position={[5, 8, 5]} intensity={1.1} />\n` +
+      `          <directionalLight castShadow position={[5, 8, 5]} intensity={1.1} shadow-mapSize={dioramaiShadowMapSize} />\n` +
       `        </>\n` +
       `      ) : null}\n`
     : '') +

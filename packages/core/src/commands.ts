@@ -7,6 +7,7 @@ import {
   type NodeSemantics,
   type Scene,
   type SceneEnvironment,
+  type SceneRenderSettings,
   type SceneLight,
   type SceneNode,
   type SemanticGroup,
@@ -80,12 +81,16 @@ export type Command =
   | { type: 'SET_SELECTION'; nodeId: string | null }
   | { type: 'UPDATE_LIGHT'; nodeId: string; light: SceneLight }
   | { type: 'UPDATE_ENVIRONMENT'; patch: EnvironmentPatch }
+  | { type: 'UPDATE_RENDER_SETTINGS'; patch: RenderSettingsPatch }
   | { type: 'SET_NODE_VISIBLE'; nodeId: string; visible: boolean };
 
 export type EnvironmentPatch = Omit<Partial<SceneEnvironment>, 'hdriUri'> & {
   /** Null means "clear the optional HDRI URI"; persisted scene data still omits the field. */
   hdriUri?: string | null;
 };
+
+/** Partial merge into scene.renderSettings; undefined fields are left untouched. */
+export type RenderSettingsPatch = Partial<SceneRenderSettings>;
 
 const addChild = (node: SceneNode, childId: string): SceneNode => ({
   ...node,
@@ -790,6 +795,31 @@ const applyUpdateEnvironment = (
   return nextScene;
 };
 
+const mergeRenderSettingsPatch = (
+  current: SceneRenderSettings | undefined,
+  patch: RenderSettingsPatch,
+): SceneRenderSettings => {
+  const next: SceneRenderSettings = { ...(current ?? {}) };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined) {
+      (next as Record<string, unknown>)[key] = value;
+    }
+  }
+  return next;
+};
+
+const applyUpdateRenderSettings = (
+  scene: Scene,
+  patch: RenderSettingsPatch,
+): Scene => {
+  const next = mergeRenderSettingsPatch(scene.renderSettings, patch);
+  if (JSON.stringify(scene.renderSettings ?? {}) === JSON.stringify(next)) return scene;
+
+  const nextScene: Scene = { ...scene, renderSettings: next };
+  if (!validateScene(nextScene)) return scene;
+  return nextScene;
+};
+
 const applySetNodeVisible = (
   scene: Scene,
   nodeId: string,
@@ -856,6 +886,8 @@ export const applyCommand = (scene: Scene, command: Command): Scene => {
       return applyUpdateLight(scene, command.nodeId, command.light);
     case 'UPDATE_ENVIRONMENT':
       return applyUpdateEnvironment(scene, command.patch);
+    case 'UPDATE_RENDER_SETTINGS':
+      return applyUpdateRenderSettings(scene, command.patch);
     case 'SET_NODE_VISIBLE':
       return applySetNodeVisible(scene, command.nodeId, command.visible);
     default: {
@@ -1058,6 +1090,13 @@ const commandError = (scene: Scene, command: Command): string | undefined => {
       };
       if (!validateScene({ ...scene, environment: mergeEnvironmentPatch(current, command.patch) })) {
         return 'UPDATE_ENVIRONMENT would violate scene invariants';
+      }
+      return undefined;
+    }
+    case 'UPDATE_RENDER_SETTINGS': {
+      const merged = mergeRenderSettingsPatch(scene.renderSettings, command.patch);
+      if (!validateScene({ ...scene, renderSettings: merged })) {
+        return 'UPDATE_RENDER_SETTINGS would violate scene invariants';
       }
       return undefined;
     }

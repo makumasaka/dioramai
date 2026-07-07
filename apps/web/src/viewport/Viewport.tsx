@@ -41,10 +41,25 @@ export function Viewport() {
       ? environment.backgroundColor
       : '#181e2e';
 
+  const renderSettings = scene.renderSettings ?? {};
+  const shadowsEnabled = renderSettings.shadows ?? true;
+  const maxPixelRatio = renderSettings.maxPixelRatio ?? 2;
+  const shadowMapSize = renderSettings.shadowMapSize ?? 1024;
+  const antialias = renderSettings.antialias ?? true;
+  const powerPreference = renderSettings.powerPreference ?? 'default';
+  // shadows, shadow map allocation, and gl context options only apply at context
+  // creation, so remount the canvas when they change. dpr and frameloop are
+  // applied live by R3F.
+  const canvasKey = `${shadowsEnabled}:${shadowMapSize}:${antialias}:${powerPreference}`;
+
   return (
     <div className="viewport">
       <Canvas
-        shadows
+        key={canvasKey}
+        shadows={shadowsEnabled}
+        dpr={[Math.min(1, maxPixelRatio), maxPixelRatio]}
+        frameloop={renderSettings.renderOnDemand ? 'demand' : 'always'}
+        gl={{ antialias, powerPreference }}
         camera={{ position: [5, 5, 7], fov: 50 }}
         onPointerMissed={() => select(null)}
       >
@@ -54,18 +69,18 @@ export function Viewport() {
           <>
             <ambientLight intensity={0.45} />
             <directionalLight
-              castShadow
+              castShadow={shadowsEnabled}
               position={[5, 8, 5]}
               intensity={1.2}
-              shadow-mapSize={[1024, 1024]}
+              shadow-mapSize={[shadowMapSize, shadowMapSize]}
             />
           </>
         ) : (
           <directionalLight
-            castShadow
+            castShadow={shadowsEnabled}
             position={[5, 8, 5]}
             intensity={0.4}
-            shadow-mapSize={[1024, 1024]}
+            shadow-mapSize={[shadowMapSize, shadowMapSize]}
           />
         )}
 

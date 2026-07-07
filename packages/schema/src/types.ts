@@ -6,6 +6,7 @@ export type {
   NodeType,
   SceneLight,
   SceneEnvironment,
+  SceneRenderSettings,
   SemanticRole,
   SemanticSource,
   Trait,

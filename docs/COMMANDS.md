@@ -5,7 +5,7 @@ agent sessions, evals, and future MCP tools must produce commands and pass them
 through the core reducer instead of editing scene objects directly.
 
 Untrusted payloads are validated by `CommandSchema` in
-`packages/agent-interface/src/commandSchema.ts` before they reach core.
+`packages/core/src/commandSchema.ts` before they reach core reducers.
 
 ## Scene Contract
 
@@ -49,7 +49,7 @@ behavior with deterministic metadata for UI, agent, and future MCP surfaces.
 - `command`: the original command object.
 
 Expected invalid user or agent commands follow a no-throw policy. Use
-`CommandResult.error` or agent-interface `COMMAND_REJECTED` results for expected
+`CommandResult.error` or bridge `VALIDATION_ERROR` results for expected
 rejections. Reserve thrown exceptions for programmer errors outside the command
 contract.
 
@@ -65,10 +65,9 @@ contract.
 - Every changing command must preserve graph invariants.
 - `CommandSchema` must mirror the core `Command` union. Any command union change
   must update `CommandSchema`, `COMMAND_TYPES`, `COMMAND_SCHEMA_PARITY`,
-  `docs/COMMANDS.md`, core command tests, agent-interface validation tests, and
-  affected UI/export tests together.
-- `packages/agent-interface/src/commandSchema.test.ts` locks the command type
-  set, valid/invalid payload coverage, and `COMMAND_SCHEMA_PARITY`.
+  `docs/COMMANDS.md`, core command tests, and affected UI/export tests together.
+- `packages/core/src/commands.test.ts` locks the command type set,
+  valid/invalid payload coverage, and `COMMAND_SCHEMA_PARITY`.
 
 ## Product Log And History Policy
 
@@ -97,24 +96,16 @@ contract.
 - Viewport traversal must preserve scene hierarchy semantics and match R3F export
   traversal for visible nodes.
 
-## Future MCP Exposure
+## MCP Exposure
 
-Every command below is eligible for future MCP exposure through the same
-validated command surface. MCP tools must validate payloads with the agent
-schemas, may dry-run before apply, and must not introduce command-specific
+Every command below is exposed to agents through the same validated command
+surface. The live MCP tool contract is documented in
+[mcp-tools.md](mcp-tools.md); tools proxy through the local bridge, validate
+payloads with `CommandSchema`, and must not introduce command-specific
 mutation paths.
 
-The locked internal agent runtime lives in `@dioramai/agent-interface`; see
-[AGENT_API.md](AGENT_API.md). Command-oriented entry points are:
-
-- `dryRunCommand(input)` for single-command previews.
-- `applyCommand(input, options?)` for single-command mutation.
-- `dryRunCommandBatch(input)` for batch previews.
-- `applyCommandBatch(input, options?)` for all-or-nothing batch mutation.
-- `getCommandLog()` for deterministic committed action entries.
-
-Undo/redo are not part of the Milestone 6 agent runtime implementation. They
-remain store-owned in the web product until a later runtime contract adds them.
+Undo/redo remain store-owned in the web product; they are not part of the
+bridge or MCP surface.
 
 ## ADD_NODE
 
@@ -177,8 +168,8 @@ Test coverage notes:
 - `packages/core/src/editingReducer.flows.test.ts` covers reducer flow usage.
 - `packages/core/src/sceneGraph.property.test.ts` covers invariant preservation
   across random command streams.
-- `packages/agent-interface/src/agentInterface.test.ts` covers validated agent
-  execution and dry-run.
+- `packages/core/src/commands.test.ts` covers `CommandSchema` validation of
+  untrusted payloads before reducer execution.
 
 ## DELETE_NODE
 
@@ -308,8 +299,8 @@ Test coverage notes:
 - `packages/core/src/commandContract.test.ts` covers position, rotation, scale,
   full patches, missing nodes, empty patches, and equal-value no-ops.
 - `packages/core/src/editingReducer.flows.test.ts` covers transform edit flow.
-- `packages/agent-interface/src/agentInterface.test.ts` covers malformed patch
-  validation before reducer execution.
+- `packages/core/src/commands.test.ts` covers malformed patch validation
+  before reducer execution.
 
 ## STRUCTURE_SCENE
 
@@ -777,8 +768,8 @@ Test coverage notes:
   scene rejection, and clone-not-alias behavior.
 - `apps/web/src/store/sceneStore.test.ts` covers session-boundary history/log
   clearing.
-- `packages/agent-interface/src/agentInterface.test.ts` covers canonical JSON
-  load, embedded scene load, and parse errors.
+- `packages/local-bridge/src/runtime.test.ts` covers canonical JSON load,
+  embedded scene load, and parse errors through the bridge.
 
 ## UPDATE_LIGHT
 
@@ -857,6 +848,42 @@ No-op cases:
 Validation errors:
 
 - `UPDATE_ENVIRONMENT would violate scene invariants`
+
+## UPDATE_RENDER_SETTINGS
+
+Purpose: merge a patch into the scene-level `renderSettings` (performance
+tuning applied by the studio viewport and the generated R3F module's
+`dioramaiCanvasProps` export).
+
+Payload shape:
+
+```ts
+{
+  type: 'UPDATE_RENDER_SETTINGS';
+  patch: Partial<{
+    maxPixelRatio: number; // 0.25 - 4
+    shadows: boolean;
+    shadowMapSize: 256 | 512 | 1024 | 2048 | 4096;
+    renderOnDemand: boolean;
+    antialias: boolean;
+    powerPreference: 'default' | 'high-performance' | 'low-power';
+  }>;
+}
+```
+
+Behavior:
+
+- Merges defined `patch` fields into `scene.renderSettings`, creating it when
+  absent. Undefined fields are left untouched.
+- Validates the resulting scene before accepting the change.
+
+No-op cases:
+
+- The merged render settings equal the current render settings.
+
+Validation errors:
+
+- `UPDATE_RENDER_SETTINGS would violate scene invariants`
 
 ## SET_NODE_VISIBLE
 

@@ -18,6 +18,7 @@ export const cloneSceneImmutable = (scene: Scene): Scene => ({
   ...(scene.assets !== undefined ? { assets: { ...scene.assets } } : {}),
   ...(scene.materials !== undefined ? { materials: { ...scene.materials } } : {}),
   ...(scene.environment !== undefined ? { environment: { ...scene.environment } } : {}),
+  ...(scene.renderSettings !== undefined ? { renderSettings: { ...scene.renderSettings } } : {}),
   ...(scene.layoutMetadata !== undefined ? { layoutMetadata: { ...scene.layoutMetadata } } : {}),
   ...(scene.metadata !== undefined ? { metadata: { ...scene.metadata } } : {}),
 });

@@ -31,6 +31,7 @@ export const COMMAND_TYPES = [
   'REPLACE_SCENE',
   'UPDATE_LIGHT',
   'UPDATE_ENVIRONMENT',
+  'UPDATE_RENDER_SETTINGS',
   'SET_NODE_VISIBLE',
 ] as const satisfies readonly Command['type'][];
 
@@ -55,6 +56,7 @@ export const COMMAND_SCHEMA_PARITY: CommandTypeParity = {
   REPLACE_SCENE: true,
   UPDATE_LIGHT: true,
   UPDATE_ENVIRONMENT: true,
+  UPDATE_RENDER_SETTINGS: true,
   SET_NODE_VISIBLE: true,
 };
 
@@ -85,6 +87,20 @@ const EnvironmentPatchSchema = z
       .string()
       .regex(/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/)
       .optional(),
+  })
+  .strict();
+
+/** Patch shape for UPDATE_RENDER_SETTINGS: all fields optional, no defaults applied. */
+const RenderSettingsPatchSchema = z
+  .object({
+    maxPixelRatio: z.number().finite().min(0.25).max(4).optional(),
+    shadows: z.boolean().optional(),
+    shadowMapSize: z
+      .union([z.literal(256), z.literal(512), z.literal(1024), z.literal(2048), z.literal(4096)])
+      .optional(),
+    renderOnDemand: z.boolean().optional(),
+    antialias: z.boolean().optional(),
+    powerPreference: z.enum(['default', 'high-performance', 'low-power']).optional(),
   })
   .strict();
 
@@ -225,6 +241,12 @@ export const CommandSchema = z.discriminatedUnion('type', [
     .object({
       type: z.literal('UPDATE_ENVIRONMENT'),
       patch: EnvironmentPatchSchema,
+    })
+    .strict(),
+  z
+    .object({
+      type: z.literal('UPDATE_RENDER_SETTINGS'),
+      patch: RenderSettingsPatchSchema,
     })
     .strict(),
   z

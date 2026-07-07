@@ -9,7 +9,9 @@ import {
   type SemanticRole,
   type SceneLight,
   type SceneEnvironment,
+  type SceneRenderSettings,
   type EnvironmentPatch,
+  type RenderSettingsPatch,
   type BehaviorDefinition,
   type BehaviorType,
   type NodeSemantics,
@@ -665,6 +667,113 @@ function EnvironmentPanel() {
   );
 }
 
+// ─── Performance panel ───────────────────────────────────────────────────────
+
+const EMPTY_RENDER_SETTINGS: SceneRenderSettings = {};
+const SHADOW_MAP_SIZES = [256, 512, 1024, 2048, 4096] as const;
+
+function PerformancePanel() {
+  const dispatch = useSceneStore((s) => s.dispatch);
+  const renderSettings = useSceneStore((s) => s.scene.renderSettings) ?? EMPTY_RENDER_SETTINGS;
+
+  const patch = (changes: RenderSettingsPatch) => {
+    dispatch({ type: 'UPDATE_RENDER_SETTINGS', patch: changes });
+  };
+
+  const maxPixelRatio = renderSettings.maxPixelRatio ?? 2;
+
+  return (
+    <section className="inspector__section">
+      <div className="inspector__section-title">Performance</div>
+      <p className="inspector__description">
+        Saved with the scene and applied to both this viewport and the generated
+        R3F module (via <code>dioramaiCanvasProps</code>).
+      </p>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Shadows</span>
+        <input
+          type="checkbox"
+          checked={renderSettings.shadows ?? true}
+          onChange={(e) => patch({ shadows: e.target.checked })}
+        />
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Shadow quality</span>
+        <select
+          className="inspector__role-select"
+          value={renderSettings.shadowMapSize ?? 1024}
+          disabled={!(renderSettings.shadows ?? true)}
+          onChange={(e) =>
+            patch({ shadowMapSize: Number(e.target.value) as SceneRenderSettings['shadowMapSize'] })
+          }
+        >
+          {SHADOW_MAP_SIZES.map((size) => (
+            <option key={size} value={size}>
+              {size} px
+            </option>
+          ))}
+        </select>
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Max pixel ratio</span>
+        <input
+          type="range"
+          className="inspector__range"
+          min={0.5}
+          max={3}
+          step={0.25}
+          value={maxPixelRatio}
+          onChange={(e) => patch({ maxPixelRatio: Number(e.target.value) })}
+        />
+        <span className="inspector__value inspector__value--mono">{maxPixelRatio.toFixed(2)}</span>
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Render on demand</span>
+        <input
+          type="checkbox"
+          checked={renderSettings.renderOnDemand ?? false}
+          onChange={(e) => patch({ renderOnDemand: e.target.checked })}
+        />
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">Antialias</span>
+        <input
+          type="checkbox"
+          checked={renderSettings.antialias ?? true}
+          onChange={(e) => patch({ antialias: e.target.checked })}
+        />
+      </div>
+
+      <div className="inspector__row">
+        <span className="inspector__key">GPU preference</span>
+        <select
+          className="inspector__role-select"
+          value={renderSettings.powerPreference ?? 'default'}
+          onChange={(e) =>
+            patch({
+              powerPreference: e.target.value as SceneRenderSettings['powerPreference'],
+            })
+          }
+        >
+          <option value="default">Default</option>
+          <option value="high-performance">High performance</option>
+          <option value="low-power">Low power</option>
+        </select>
+      </div>
+
+      <p className="inspector__hint">
+        Lower pixel ratio and shadow quality are the biggest wins on large GLB
+        scenes. Render on demand pauses drawing while nothing changes.
+      </p>
+    </section>
+  );
+}
+
 // ─── Main Inspector ─────────────────────────────────────────────────────────
 
 type InspectorTab = 'inspector' | 'advanced';
@@ -842,7 +951,14 @@ export function Inspector() {
         </button>
       </div>
       <div className="inspector-panel__body">
-        {tab === 'inspector' ? <InspectorContent /> : <CommandHistory />}
+        {tab === 'inspector' ? (
+          <InspectorContent />
+        ) : (
+          <>
+            <PerformancePanel />
+            <CommandHistory />
+          </>
+        )}
       </div>
     </aside>
   );

@@ -59,6 +59,32 @@ describe('scene JSON contract', () => {
     expect(doc.version).toBe(2);
   });
 
+  it('roundtrips optional render settings', () => {
+    const scene: Scene = {
+      ...canonicalScene(),
+      renderSettings: {
+        maxPixelRatio: 1.5,
+        shadows: false,
+        shadowMapSize: 512,
+        renderOnDemand: true,
+        antialias: false,
+        powerPreference: 'low-power',
+      },
+    };
+
+    const parsed = parseSceneJson(serializeScene(scene));
+    expect(parsed?.renderSettings).toEqual(scene.renderSettings);
+    expect(validateScene(scene)).toBe(true);
+  });
+
+  it('rejects unknown render settings fields', () => {
+    const doc = JSON.parse(serializeScene(canonicalScene())) as {
+      data: Record<string, unknown>;
+    };
+    doc.data.renderSettings = { turbo: true };
+    expect(parseSceneJson(JSON.stringify(doc))).toBeNull();
+  });
+
   it('parses v2 documents that still use the pre-rebrand format id', () => {
     const text = JSON.stringify({
       format: SCENE_DOCUMENT_LEGACY_FORMAT,

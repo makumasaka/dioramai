@@ -159,6 +159,9 @@ export const cloneSceneFromJson = (scene: Scene): Scene => ({
   ...(scene.environment !== undefined
     ? { environment: { ...scene.environment } }
     : {}),
+  ...(scene.renderSettings !== undefined
+    ? { renderSettings: { ...scene.renderSettings } }
+    : {}),
   ...(scene.layoutMetadata !== undefined
     ? { layoutMetadata: { ...scene.layoutMetadata } }
     : {}),

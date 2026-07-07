@@ -719,6 +719,65 @@ describe('applyCommandWithResult', () => {
     expect(next).toBe(scene);
   });
 
+  it('UPDATE_RENDER_SETTINGS merges patches into scene render settings', () => {
+    const scene = createEmptyScene();
+    const tuned = applyCommand(scene, {
+      type: 'UPDATE_RENDER_SETTINGS',
+      patch: { maxPixelRatio: 1.5, shadows: false },
+    });
+    expect(tuned.renderSettings).toEqual({ maxPixelRatio: 1.5, shadows: false });
+
+    const withDemand = applyCommand(tuned, {
+      type: 'UPDATE_RENDER_SETTINGS',
+      patch: { renderOnDemand: true },
+    });
+    expect(withDemand.renderSettings).toEqual({
+      maxPixelRatio: 1.5,
+      shadows: false,
+      renderOnDemand: true,
+    });
+    assertValid(withDemand);
+  });
+
+  it('UPDATE_RENDER_SETTINGS is a no-op when nothing changes', () => {
+    const scene = applyCommand(createEmptyScene(), {
+      type: 'UPDATE_RENDER_SETTINGS',
+      patch: { shadowMapSize: 2048 },
+    });
+    const next = applyCommand(scene, {
+      type: 'UPDATE_RENDER_SETTINGS',
+      patch: { shadowMapSize: 2048 },
+    });
+    expect(next).toBe(scene);
+  });
+
+  it('UPDATE_RENDER_SETTINGS schema rejects out-of-range and unknown fields', () => {
+    expect(
+      CommandSchema.safeParse({
+        type: 'UPDATE_RENDER_SETTINGS',
+        patch: { maxPixelRatio: 2, renderOnDemand: true },
+      }).success,
+    ).toBe(true);
+    expect(
+      CommandSchema.safeParse({
+        type: 'UPDATE_RENDER_SETTINGS',
+        patch: { maxPixelRatio: 10 },
+      }).success,
+    ).toBe(false);
+    expect(
+      CommandSchema.safeParse({
+        type: 'UPDATE_RENDER_SETTINGS',
+        patch: { shadowMapSize: 999 },
+      }).success,
+    ).toBe(false);
+    expect(
+      CommandSchema.safeParse({
+        type: 'UPDATE_RENDER_SETTINGS',
+        patch: { turbo: true },
+      }).success,
+    ).toBe(false);
+  });
+
   it('SET_NODE_VISIBLE toggles visibility and is a no-op when unchanged', () => {
     let scene = createEmptyScene();
     scene = applyCommand(scene, {

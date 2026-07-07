@@ -176,7 +176,10 @@ describe('Dioramai project onboarding', () => {
     expect(gitignore).toContain('.dioramai/');
     expect(await stat(resolve(initRoot, 'src/components/README.md'))).toBeTruthy();
     const wrapper = await readFile(resolve(initRoot, 'src/DioramaiApp.tsx'), 'utf8');
-    expect(wrapper).toContain("import { DioramaiScene } from './generated/DioramaiScene.generated';");
+    expect(wrapper).toContain(
+      "import { DioramaiScene, dioramaiCanvasProps } from './generated/DioramaiScene.generated';",
+    );
+    expect(wrapper).toContain('{...dioramaiCanvasProps}');
     const generated = await readFile(resolve(initRoot, 'src/generated/DioramaiScene.generated.tsx'), 'utf8');
     expect(generated).not.toContain(initRoot);
     expect(parseSceneFromR3fSyncModule(generated).ok).toBe(true);

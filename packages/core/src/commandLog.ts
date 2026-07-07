@@ -103,6 +103,11 @@ export const summarizeCommand = (command: Command): CommandSummary => {
         title: 'Update environment',
         detail: Object.keys(command.patch).join(', ') || 'no changes',
       };
+    case 'UPDATE_RENDER_SETTINGS':
+      return {
+        title: 'Update render settings',
+        detail: Object.keys(command.patch).join(', ') || 'no changes',
+      };
     case 'SET_NODE_VISIBLE':
       return {
         title: 'Set visibility',
