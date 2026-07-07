@@ -27,10 +27,15 @@ The local bridge (`@dioramai/local-bridge`) is designed to be safe to run next
 to a real project checkout:
 
 - It binds to localhost and rejects requests whose `Host` header is not a
-  localhost name.
-- Browser-originated requests must present the per-session pairing token
+  localhost name (this also blocks DNS-rebinding style attacks).
+- Browser-originated requests (any request carrying an `Origin` header),
+  including `/health` probes, must present the per-session pairing token
   (`x-dioramai-token` header or `token` query parameter). The token is
   generated randomly at startup unless `DIORAMAI_BRIDGE_TOKEN` is set.
+- Local non-browser clients (the CLI, MCP stdio proxies, curl) do not send an
+  `Origin` header and are trusted under the localhost model: any process on
+  the same machine can call the bridge tool routes. Do not run the bridge on
+  shared multi-user hosts.
 - Cross-origin access is limited via `DIORAMAI_ALLOWED_ORIGINS`.
 - Asset serving is restricted to the configured asset/HDRI directories, with
   path traversal checks and an allowlist of file extensions.

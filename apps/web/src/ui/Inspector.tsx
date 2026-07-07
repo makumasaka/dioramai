@@ -722,8 +722,10 @@ function PerformancePanel() {
         <input
           type="range"
           className="inspector__range"
-          min={0.5}
-          max={3}
+          aria-label="Max pixel ratio"
+          // Range mirrors SceneRenderSettingsSchema.maxPixelRatio (0.25–4).
+          min={0.25}
+          max={4}
           step={0.25}
           value={maxPixelRatio}
           onChange={(e) => patch({ maxPixelRatio: Number(e.target.value) })}

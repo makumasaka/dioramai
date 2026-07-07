@@ -85,5 +85,5 @@ The root `package.json` `name` field is now `dioramai` (was `scenegraph-ai`) to 
 
 ## TODOs left in tree
 
-- `packages/mcp` - real MCP tool/server surface is not implemented; the package currently remains a narrow adapter surface.
+- `packages/mcp` - now owns the typed tool contract (`DIORAMAI_MCP_TOOL_NAMES` / `DIORAMAI_MCP_TOOL_DEFINITIONS`) consumed by the stdio proxies (`scripts/dioramai-mcp.ts` and `dioramai mcp`); see `docs/mcp-tools.md`.
 - `packages/examples` - checked-in scene examples exist, but broader scripted eval harnesses are still future work.

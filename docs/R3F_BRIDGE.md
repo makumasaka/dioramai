@@ -48,7 +48,7 @@ The generated module includes:
 Default generated location:
 
 ```text
-src/dioramai/DioramaiScene.generated.tsx
+src/generated/DioramaiScene.generated.tsx
 ```
 
 Code-to-runtime sync parses only the embedded `dioramaiScene` block. Arbitrary JSX

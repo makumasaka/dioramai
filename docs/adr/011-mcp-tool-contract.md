@@ -2,7 +2,13 @@
 
 ## Status
 
-Accepted after MCP-lite. Real MCP transport remains deferred.
+Accepted after MCP-lite. Update: a real MCP stdio transport has since shipped
+as a thin proxy over the local bridge (`scripts/dioramai-mcp.ts` and the
+`dioramai mcp` CLI subcommand). The shipped P0 surface is narrower than the
+tool list sketched below — it deliberately excludes generic `apply_command` /
+`apply_command_batch`; `packages/mcp/src/index.ts` and `docs/mcp-tools.md` are
+canonical. The `@dioramai/agent-interface` runtime referenced below has been
+removed (see `docs/ARCHITECTURE.md`).
 
 ## Context
 

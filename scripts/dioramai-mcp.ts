@@ -1,4 +1,5 @@
 import { DEFAULT_BRIDGE_PORT } from '@dioramai/local-bridge';
+import { DIORAMAI_MCP_TOOL_DEFINITIONS } from '@dioramai/mcp';
 
 type JsonRpcId = string | number | null;
 
@@ -9,141 +10,10 @@ type JsonRpcRequest = {
   params?: Record<string, unknown>;
 };
 
-type ToolDefinition = {
-  name: string;
-  description: string;
-  inputSchema: Record<string, unknown>;
-};
-
 const port = Number(process.env.DIORAMAI_BRIDGE_PORT ?? DEFAULT_BRIDGE_PORT);
 const bridgeUrl = `http://127.0.0.1:${port}`;
 
-const objectSchema = (properties: Record<string, unknown> = {}, required: string[] = []) => ({
-  type: 'object',
-  properties,
-  required,
-  additionalProperties: false,
-});
-
-const sceneRef = {
-  type: 'object',
-  description: 'A Dioramai scene graph object.',
-  additionalProperties: true,
-};
-
-const tools: ToolDefinition[] = [
-  {
-    name: 'get_project_status',
-    description: 'Return the local Dioramai bridge project status and configured safe paths.',
-    inputSchema: objectSchema(),
-  },
-  {
-    name: 'get_scene',
-    description: 'Return the active Dioramai bridge scene.',
-    inputSchema: objectSchema(),
-  },
-  {
-    name: 'load_scene',
-    description: 'Replace the shared bridge scene from JSON text or a parsed scene graph.',
-    inputSchema: objectSchema({
-      json: { type: 'string' },
-      scene: sceneRef,
-      dryRun: { type: 'boolean' },
-    }),
-  },
-  {
-    name: 'register_asset',
-    description: 'Register a project-relative GLB/GLTF asset and add an asset-backed scene node.',
-    inputSchema: objectSchema({
-      workspaceRelativePath: { type: 'string' },
-      path: { type: 'string' },
-      name: { type: 'string' },
-      importMode: {
-        type: 'string',
-        enum: ['hierarchy', 'shallow', 'single'],
-        description: 'hierarchy is the default; shallow is a backward-compatible alias; single creates one opaque asset node.',
-      },
-      semanticRole: {
-        type: 'string',
-        enum: ['product', 'display', 'seating', 'lighting', 'light', 'environment', 'navigation', 'decor', 'container', 'unknown'],
-      },
-      parentId: { type: 'string' },
-      dryRun: { type: 'boolean' },
-    }),
-  },
-  {
-    name: 'import_glb_asset',
-    description: 'Alias for register_asset. Import a project-relative GLB/GLTF path as an asset-backed scene node.',
-    inputSchema: objectSchema({
-      path: { type: 'string' },
-      workspaceRelativePath: { type: 'string' },
-      name: { type: 'string' },
-      importMode: {
-        type: 'string',
-        enum: ['hierarchy', 'shallow', 'single'],
-        description: 'hierarchy is the default; shallow is a backward-compatible alias; single creates one opaque asset node.',
-      },
-      semanticRole: {
-        type: 'string',
-        enum: ['product', 'display', 'seating', 'lighting', 'light', 'environment', 'navigation', 'decor', 'container', 'unknown'],
-      },
-      parentId: { type: 'string' },
-      dryRun: { type: 'boolean' },
-    }),
-  },
-  {
-    name: 'update_transform',
-    description: 'Apply a deterministic UPDATE_TRANSFORM command for one node.',
-    inputSchema: objectSchema({
-      nodeId: { type: 'string' },
-      patch: objectSchema({
-        position: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
-        rotation: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
-        scale: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 },
-      }),
-      dryRun: { type: 'boolean' },
-    }, ['nodeId', 'patch']),
-  },
-  {
-    name: 'update_environment',
-    description: 'Apply a deterministic UPDATE_ENVIRONMENT command for scene-level HDRI lighting.',
-    inputSchema: objectSchema({
-      patch: objectSchema({
-        hdriUri: { anyOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] },
-        enabled: { type: 'boolean' },
-        showBackground: { type: 'boolean' },
-        intensity: { type: 'number', minimum: 0 },
-        rotationY: { type: 'number' },
-        backgroundColor: { type: 'string' },
-      }),
-      dryRun: { type: 'boolean' },
-    }, ['patch']),
-  },
-  {
-    name: 'export_r3f',
-    description: 'Export the shared scene to the project generated R3F sync module.',
-    inputSchema: objectSchema({
-      write: { type: 'boolean' },
-    }),
-  },
-  {
-    name: 'write_scene_to_file',
-    description: 'Write the current canonical scene to the generated R3F module and scene JSON file.',
-    inputSchema: objectSchema(),
-  },
-  {
-    name: 'reload_scene_from_file',
-    description: 'Reload canonical scene state from the generated R3F scene block or scene JSON file.',
-    inputSchema: objectSchema(),
-  },
-  {
-    name: 'sync_code',
-    description: 'Synchronize scene/code. Default writes code; use direction "fromCode" to reload the generated scene block.',
-    inputSchema: objectSchema({
-      direction: { type: 'string', enum: ['toCode', 'fromCode'] },
-    }),
-  },
-];
+const tools = DIORAMAI_MCP_TOOL_DEFINITIONS;
 
 const writeResponse = (id: JsonRpcId | undefined, result: unknown): void => {
   if (id === undefined) return;

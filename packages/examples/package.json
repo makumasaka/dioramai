@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Sample scenes and scripted scenarios (TODO: flesh out).",
+  "description": "Example Dioramai scene JSON documents and starter kits.",
   "main": "./src/index.ts",
   "types": "./src/index.ts",
   "exports": {

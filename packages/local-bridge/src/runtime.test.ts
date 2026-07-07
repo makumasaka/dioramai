@@ -892,6 +892,35 @@ describe('DioramaiBridgeRuntime importAsset and sync', () => {
     }
   });
 
+  it('requires a pairing token for browser-origin /health probes but not for local clients', async () => {
+    const started = await startDioramaiBridgeServer(0, {
+      projectRoot,
+      pairingToken: 'test-token',
+    });
+    try {
+      // A web page (any Origin) must not be able to detect a running bridge
+      // or read project metadata without the pairing token.
+      const browserProbe = await fetch(`http://127.0.0.1:${started.port}/health`, {
+        headers: { Origin: 'https://evil.example.com' },
+      });
+      expect(browserProbe.status).toBe(403);
+
+      const browserWithToken = await fetch(
+        `http://127.0.0.1:${started.port}/health?token=test-token`,
+        { headers: { Origin: 'https://evil.example.com' } },
+      );
+      expect(browserWithToken.status).toBe(200);
+
+      // Local non-browser clients (CLI doctor, MCP proxies) send no Origin.
+      const localProbe = await fetch(`http://127.0.0.1:${started.port}/health`);
+      const payload = await localProbe.json() as { ok: boolean };
+      expect(localProbe.status).toBe(200);
+      expect(payload.ok).toBe(true);
+    } finally {
+      await started.close();
+    }
+  });
+
   it('falls back to the next available port when the preferred bridge port is busy', async () => {
     const blocker = createNetServer();
     const preferredPort = await listenOnRandomPort(blocker);

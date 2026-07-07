@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   DIORAMAI_MCP_FORBIDDEN_CAPABILITIES,
+  DIORAMAI_MCP_TOOL_DEFINITIONS,
   DIORAMAI_MCP_TOOL_NAMES,
 } from './index';
 
@@ -27,6 +28,20 @@ describe('Dioramai MCP P0 tool contract', () => {
   it('does not expose generation, shell, filesystem, or generic mutation tools', () => {
     for (const forbidden of DIORAMAI_MCP_FORBIDDEN_CAPABILITIES) {
       expect(DIORAMAI_MCP_TOOL_NAMES).not.toContain(forbidden);
+    }
+  });
+
+  it('provides exactly one stdio tool definition per contract tool name', () => {
+    const definitionNames = DIORAMAI_MCP_TOOL_DEFINITIONS.map((tool) => tool.name);
+    expect([...definitionNames].sort()).toEqual([...DIORAMAI_MCP_TOOL_NAMES].sort());
+    expect(new Set(definitionNames).size).toBe(definitionNames.length);
+  });
+
+  it('gives every stdio tool definition a description and object input schema', () => {
+    for (const tool of DIORAMAI_MCP_TOOL_DEFINITIONS) {
+      expect(tool.description.length).toBeGreaterThan(0);
+      expect(tool.inputSchema.type).toBe('object');
+      expect(tool.inputSchema.additionalProperties).toBe(false);
     }
   });
 });

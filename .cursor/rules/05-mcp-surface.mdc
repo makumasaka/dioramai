@@ -5,7 +5,13 @@ alwaysApply: false
 ---
 
 - Keep the tool surface small, typed, and reversible.
-- Prefer getScene, getSelection, applyCommand, loadScene, exportScene.
+- `DIORAMAI_MCP_TOOL_NAMES` in `packages/mcp/src/index.ts` is the canonical tool
+  list; `docs/mcp-tools.md` documents payloads.
+- Stdio proxies (`scripts/dioramai-mcp.ts`, `dioramai mcp`) must expose exactly
+  the tools in `DIORAMAI_MCP_TOOL_DEFINITIONS`; never define ad-hoc tool lists.
+- Never expose shell, file read/write, generic `apply_command`/
+  `apply_command_batch`, or asset generation tools
+  (`DIORAMAI_MCP_FORBIDDEN_CAPABILITIES`).
 - Validate all payloads before execution.
 - Support preview/dry-run flows where possible.
 - Never allow direct hidden state mutation.

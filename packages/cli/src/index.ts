@@ -13,6 +13,7 @@ import {
   validateDioramaiProject,
   type DioramaiDoctorItem,
 } from '@dioramai/local-bridge';
+import { DIORAMAI_MCP_TOOL_DEFINITIONS } from '@dioramai/mcp';
 
 /**
  * Path to the bundled default HDRI shipped with the CLI package. Resolves
@@ -264,19 +265,12 @@ const printDoctor = (io: CliIo, result: Awaited<ReturnType<typeof doctorDioramai
 type JsonRpcId = string | number | null;
 type JsonRpcRequest = { jsonrpc: '2.0'; id?: JsonRpcId; method: string; params?: Record<string, unknown> };
 
-const mcpTools = [
-  { name: 'get_project_status', description: 'Return the local Dioramai bridge project status and configured safe paths.', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } },
-  { name: 'get_scene', description: 'Return the active Dioramai bridge scene.', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } },
-  { name: 'load_scene', description: 'Replace the shared bridge scene from JSON text or a parsed scene graph.', inputSchema: { type: 'object', properties: { json: { type: 'string' }, scene: { type: 'object', additionalProperties: true }, dryRun: { type: 'boolean' } }, additionalProperties: false } },
-  { name: 'register_asset', description: 'Register a project-relative GLB/GLTF asset, add an asset-backed scene node, and import the GLB hierarchy by default.', inputSchema: { type: 'object', properties: { workspaceRelativePath: { type: 'string' }, path: { type: 'string' }, name: { type: 'string' }, importMode: { type: 'string', enum: ['hierarchy', 'shallow', 'single'], description: 'hierarchy is the default; shallow is a backward-compatible alias; single creates one opaque asset node.' }, semanticRole: { type: 'string', enum: ['product', 'display', 'seating', 'lighting', 'light', 'environment', 'navigation', 'decor', 'container', 'unknown'] }, parentId: { type: 'string' }, dryRun: { type: 'boolean' } }, additionalProperties: false } },
-  { name: 'import_glb_asset', description: 'Alias for register_asset. Import a project-relative GLB/GLTF path as an asset-backed scene node with hierarchy by default.', inputSchema: { type: 'object', properties: { path: { type: 'string' }, workspaceRelativePath: { type: 'string' }, name: { type: 'string' }, importMode: { type: 'string', enum: ['hierarchy', 'shallow', 'single'], description: 'hierarchy is the default; shallow is a backward-compatible alias; single creates one opaque asset node.' }, semanticRole: { type: 'string', enum: ['product', 'display', 'seating', 'lighting', 'light', 'environment', 'navigation', 'decor', 'container', 'unknown'] }, parentId: { type: 'string' }, dryRun: { type: 'boolean' } }, additionalProperties: false } },
-  { name: 'update_transform', description: 'Apply a deterministic UPDATE_TRANSFORM command for one node.', inputSchema: { type: 'object', properties: { nodeId: { type: 'string' }, patch: { type: 'object', properties: { position: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 }, rotation: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 }, scale: { type: 'array', items: { type: 'number' }, minItems: 3, maxItems: 3 } }, additionalProperties: false }, dryRun: { type: 'boolean' } }, required: ['nodeId', 'patch'], additionalProperties: false } },
-  { name: 'update_environment', description: 'Apply a deterministic UPDATE_ENVIRONMENT command for scene-level HDRI lighting.', inputSchema: { type: 'object', properties: { patch: { type: 'object', properties: { hdriUri: { anyOf: [{ type: 'string', minLength: 1 }, { type: 'null' }] }, enabled: { type: 'boolean' }, showBackground: { type: 'boolean' }, intensity: { type: 'number', minimum: 0 }, rotationY: { type: 'number' }, backgroundColor: { type: 'string' } }, additionalProperties: false }, dryRun: { type: 'boolean' } }, required: ['patch'], additionalProperties: false } },
-  { name: 'export_r3f', description: 'Export the shared scene to the project generated R3F sync module.', inputSchema: { type: 'object', properties: { write: { type: 'boolean' } }, additionalProperties: false } },
-  { name: 'write_scene_to_file', description: 'Write the current canonical scene to the generated R3F module and scene JSON file.', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } },
-  { name: 'reload_scene_from_file', description: 'Reload canonical scene state from the generated R3F scene block or scene JSON file.', inputSchema: { type: 'object', properties: {}, required: [], additionalProperties: false } },
-  { name: 'sync_code', description: 'Synchronize scene/code. Default writes code; use direction "fromCode" to reload the generated scene block.', inputSchema: { type: 'object', properties: { direction: { type: 'string', enum: ['toCode', 'fromCode'] } }, additionalProperties: false } },
-];
+/**
+ * Stdio tool surface shared with `scripts/dioramai-mcp.ts`. Sourced from
+ * `@dioramai/mcp` so the proxies always expose the full bridge tool contract
+ * (including semantics/behavior tools) without duplicated schemas.
+ */
+const mcpTools = DIORAMAI_MCP_TOOL_DEFINITIONS;
 
 const runMcpStdioServer = async (port: number, io: CliIo): Promise<number> => {
   const bridgeUrl = `http://127.0.0.1:${port}`;

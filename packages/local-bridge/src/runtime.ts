@@ -2498,6 +2498,15 @@ export const startDioramaiBridgeServer = async (
         return;
       }
 
+      // The pairing-token gate applies to /health too: with permissive CORS a
+      // malicious page could otherwise probe for a running bridge and read
+      // project metadata. Non-browser clients (CLI doctor, MCP proxies) send
+      // no Origin header and are unaffected.
+      if (!isBrowserRequestAuthorized(req, url, pairingToken)) {
+        sendJson(403, fail('FORBIDDEN', 'Dioramai bridge pairing token is required for browser requests.'));
+        return;
+      }
+
       if (req.method === 'GET' && url.pathname === '/health') {
         const status = await runtime.getProjectStatus();
         sendJson(200, {
@@ -2511,11 +2520,6 @@ export const startDioramaiBridgeServer = async (
             lastSync: status.ok ? status.data.lastSync : null,
           },
         });
-        return;
-      }
-
-      if (!isBrowserRequestAuthorized(req, url, pairingToken)) {
-        sendJson(403, fail('FORBIDDEN', 'Dioramai bridge pairing token is required for browser requests.'));
         return;
       }
 

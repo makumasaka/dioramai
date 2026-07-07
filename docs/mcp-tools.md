@@ -86,7 +86,7 @@ Input:
 ```json
 {
   "nodeId": "chair_01",
-  "transform": {
+  "patch": {
     "position": [1, 0, 0],
     "rotation": [0, 0.5, 0],
     "scale": [1, 1, 1]
@@ -95,21 +95,72 @@ Input:
 }
 ```
 
-### `export_r3f`
+`transform` is accepted as a backward-compatible alias for `patch`.
 
-Writes or previews the generated R3F sync module for the current scene. The
-default file is `src/dioramai/DioramaiScene.generated.tsx` inside the configured
-project root.
+### `set_node_semantics`
+
+Applies a `SET_NODE_SEMANTICS` command tagging one or more nodes with a
+semantic role, label, description, and tags.
 
 Input:
 
 ```json
 {
-  "mode": "sync-module",
-  "componentName": "DioramaiScene",
-  "write": true
+  "nodeIds": ["chair_01"],
+  "semantics": {
+    "role": "product",
+    "label": "Oak Chair",
+    "tags": ["featured"]
+  },
+  "dryRun": false
 }
 ```
+
+### `add_behavior`
+
+Applies an `ADD_BEHAVIOR` command attaching a declarative interaction behavior
+(`hover_highlight`, `click_select`, `focus_camera`, `anchor_point`,
+`show_info`, `open_url`, `rotate_idle`, `scroll_reveal`) to nodes. Behavior
+metadata is JSON data only and is never executed.
+
+Input:
+
+```json
+{
+  "behavior": {
+    "id": "chair-info",
+    "type": "show_info",
+    "nodeIds": ["chair_01"],
+    "params": { "title": "Chair", "description": "Handcrafted oak seat." }
+  },
+  "dryRun": false
+}
+```
+
+### `remove_behavior`
+
+Applies a `REMOVE_BEHAVIOR` command removing a behavior by id.
+
+Input:
+
+```json
+{ "behaviorId": "chair-info", "dryRun": false }
+```
+
+### `export_r3f`
+
+Writes or previews the generated R3F sync module for the current scene. The
+default file is `src/generated/DioramaiScene.generated.tsx` inside the
+configured project root.
+
+Input:
+
+```json
+{ "write": true }
+```
+
+Pass `"write": false` to preview the generated module content without writing
+it to disk.
 
 ### `write_scene_to_file`
 

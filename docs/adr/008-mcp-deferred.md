@@ -2,7 +2,11 @@
 
 ## Status
 
-Accepted
+Superseded. The deferral has ended: `@dioramai/agent-interface` was removed
+(see `docs/ARCHITECTURE.md`), and a real MCP stdio surface now ships as thin
+proxies over the local bridge (`scripts/dioramai-mcp.ts` and the `dioramai mcp`
+CLI subcommand) with the tool contract defined in `@dioramai/mcp` and
+documented in `docs/mcp-tools.md`. Kept for historical context.
 
 ## Context
 

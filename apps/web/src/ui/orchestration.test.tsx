@@ -78,6 +78,61 @@ describe('Inspector — tabs', () => {
   });
 });
 
+// ─── Inspector — performance panel ─────────────────────────────────────────────
+
+describe('Inspector — performance panel', () => {
+  const user = userEvent.setup();
+
+  beforeEach(() => {
+    useSceneStore.getState().reset();
+  });
+
+  const openAdvancedTab = async () => {
+    render(<Inspector />);
+    await user.click(screen.getByRole('button', { name: /advanced/i }));
+  };
+
+  it('shows the performance controls in the Advanced tab', async () => {
+    await openAdvancedTab();
+    expect(screen.getByText('Performance')).toBeInTheDocument();
+    expect(screen.getByText('Shadows')).toBeInTheDocument();
+    expect(screen.getByText('Render on demand')).toBeInTheDocument();
+    expect(screen.getByText('Antialias')).toBeInTheDocument();
+    expect(screen.getByText('GPU preference')).toBeInTheDocument();
+  });
+
+  it('keeps the pixel ratio slider range aligned with SceneRenderSettingsSchema (0.25–4)', async () => {
+    await openAdvancedTab();
+    const slider = screen.getByRole('slider', { name: /max pixel ratio/i });
+    expect(slider).toHaveAttribute('min', '0.25');
+    expect(slider).toHaveAttribute('max', '4');
+  });
+
+  it('dispatches UPDATE_RENDER_SETTINGS when toggling shadows', async () => {
+    await openAdvancedTab();
+    const shadowsRow = screen.getByText('Shadows').closest('.inspector__row');
+    expect(shadowsRow).not.toBeNull();
+    await user.click(within(shadowsRow as HTMLElement).getByRole('checkbox'));
+
+    const lastCmd = useSceneStore.getState().commandLog.at(-1)?.command;
+    expect(lastCmd?.type).toBe('UPDATE_RENDER_SETTINGS');
+    if (lastCmd?.type === 'UPDATE_RENDER_SETTINGS') {
+      expect(lastCmd.patch.shadows).toBe(false);
+    }
+    expect(useSceneStore.getState().scene.renderSettings?.shadows).toBe(false);
+  });
+
+  it('dispatches UPDATE_RENDER_SETTINGS when changing the pixel ratio slider', async () => {
+    await openAdvancedTab();
+    const slider = screen.getByRole('slider', { name: /max pixel ratio/i });
+    fireEvent.change(slider, { target: { value: '1' } });
+
+    const lastCmd = useSceneStore.getState().commandLog.at(-1)?.command;
+    expect(lastCmd?.type).toBe('UPDATE_RENDER_SETTINGS');
+    expect(useSceneStore.getState().scene.renderSettings?.maxPixelRatio).toBe(1);
+  });
+});
+
 // ─── TreeView ──────────────────────────────────────────────────────────────────
 
 describe('TreeView', () => {
